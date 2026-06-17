@@ -493,6 +493,38 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.setFontSize(8.5);
         doc.setTextColor(0, 0, 0);
         doc.text(`/ ${maxScoreVal}`, denomX, oy + 100);
+
+        // QR Code (only on real assignment sheets, not tuning sheets)
+        if (!isTuning && typeof qrcode !== 'undefined' && assignName) {
+          try {
+            const qr = qrcode(0, 'M');
+            qr.addData(assignName);
+            qr.make();
+            const moduleCount = qr.getModuleCount();
+            const cellSize = 2.2;
+            const qrX = ox + 195;  // Right side of card, below score bubbles
+            const qrY = oy + 248;  // Below last bubble row (~y=241), above bottom anchor (y=315)
+            doc.setFillColor(0, 0, 0);
+            for (let row = 0; row < moduleCount; row++) {
+              for (let col = 0; col < moduleCount; col++) {
+                if (qr.isDark(row, col)) {
+                  doc.rect(qrX + col * cellSize, qrY + row * cellSize, cellSize, cellSize, 'F');
+                }
+              }
+            }
+            // White quiet-zone border so the QR has contrast against card background
+            doc.setDrawColor(255, 255, 255);
+            doc.setLineWidth(0);
+            // Label below QR
+            const qrSize = moduleCount * cellSize;
+            doc.setFont('Helvetica', 'Normal');
+            doc.setFontSize(4.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text('ASSIGNMENT ID', qrX + qrSize / 2, qrY + qrSize + 6, { align: 'center' });
+          } catch(e) {
+            console.error('QR PDF draw failed:', e);
+          }
+        }
       });
 
       // Download file
