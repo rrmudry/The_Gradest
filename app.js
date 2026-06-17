@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const logCountText = document.getElementById('log-count');
   const btnCopyDiagnostics = document.getElementById('btn-copy-diagnostics');
   const txtDiagnostics = document.getElementById('txt-diagnostics');
+  const qrLockBadge = document.getElementById('qr-lock-badge');
 
   // Grades & Export UI elements
   const btnUploadRoster = document.getElementById('btn-upload-roster');
@@ -92,8 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanner = new BubbleScanner(scanVideo, scanCanvas, {
     sensitivity: state.sensitivity,
     maxScore: state.maxScore,
-    onScanSuccess: (studentId, score) => {
-      handleSuccessfulScan(studentId, score);
+    onScanSuccess: (studentId, score, assignmentName) => {
+      handleSuccessfulScan(studentId, score, assignmentName);
     },
     onStatusChange: (statusText, isAligned) => {
       scanStatusText.textContent = statusText;
@@ -103,6 +104,19 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         scanStatusText.className = "badge badge-warning";
         scanViewport.classList.remove('aligned');
+      }
+    },
+    onQRChange: (qrValue) => {
+      if (qrValue) {
+        qrLockBadge.textContent = `\uD83D\uDD17 ${qrValue}`;
+        qrLockBadge.style.background = 'rgba(99,102,241,0.15)';
+        qrLockBadge.style.color = 'var(--accent-primary)';
+        qrLockBadge.style.borderColor = 'rgba(99,102,241,0.4)';
+      } else {
+        qrLockBadge.textContent = '\u2B1C No QR detected';
+        qrLockBadge.style.background = 'rgba(148,163,184,0.1)';
+        qrLockBadge.style.color = 'var(--text-secondary)';
+        qrLockBadge.style.borderColor = 'var(--border-color)';
       }
     }
   });
@@ -207,9 +221,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const denomX = 135 + D * 14 - 2;
     html += `<text x="${denomX}" y="100" font-family="'Outfit', sans-serif" font-size="8.5" font-weight="bold" fill="black">/ ${state.maxScore}</text>`;
 
+    // QR Code embedded below the score bubbles (for mixed-stack auto-routing)
+    let qrSvgContent = '';
+    if (typeof qrcode !== 'undefined' && state.assignmentName) {
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(state.assignmentName);
+        qr.make();
+        // Get the module count and build an SVG manually from the module matrix
+        const moduleCount = qr.getModuleCount();
+        const cellSize = 2.2;
+        const qrSize = moduleCount * cellSize;
+        const qrX = 195;   // Right side, below score bubbles
+        const qrY = 248;   // Below bubble rows (last row at y≈241), above bottom anchor (y=315)
+        qrSvgContent = `<g transform="translate(${qrX}, ${qrY})">`;
+        for (let row = 0; row < moduleCount; row++) {
+          for (let col = 0; col < moduleCount; col++) {
+            if (qr.isDark(row, col)) {
+              qrSvgContent += `<rect x="${col * cellSize}" y="${row * cellSize}" width="${cellSize}" height="${cellSize}" fill="black" />`;
+            }
+          }
+        }
+        qrSvgContent += `</g>`;
+        // Label below QR
+        qrSvgContent += `<text x="${qrX + qrSize / 2}" y="${qrY + qrSize + 6}" font-family="'Outfit', sans-serif" font-size="4.5" text-anchor="middle" fill="#475569">ASSIGNMENT ID</text>`;
+      } catch(e) {
+        console.warn('QR generation failed:', e);
+      }
+    }
+
     bubbleSheetPreview.innerHTML = `
       <svg viewBox="0 0 250 330" width="100%" height="100%" style="display:block;">
         ${html}
+        ${qrSvgContent}
       </svg>
     `;
     saveCurrentAssignmentDebounced(true);
@@ -555,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const reading = scanner.captureManual();
     if (reading) {
-      handleSuccessfulScan(reading.studentId, reading.score);
+      handleSuccessfulScan(reading.studentId, reading.score, reading.assignmentName);
     } else {
       showToast("Capture Failed", "Could not decode bubble sheet. Diagnostic details have been logged in the console below.", "error");
     }
@@ -607,8 +651,38 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Scan detection callback
-  function handleSuccessfulScan(studentId, score) {
-    state.assignmentName = inputAssignName.value.trim() || "Quiz 1";
+  function handleSuccessfulScan(studentId, score, detectedAssignmentName = null) {
+    // --- QR-based Assignment Auto-Routing ---
+    if (detectedAssignmentName) {
+      const assignments = getStoredAssignments();
+      const target = detectedAssignmentName.trim();
+
+      if (target !== state.savedAssignmentName) {
+        if (assignments[target]) {
+          // Auto-switch to the known assignment silently
+          const data = assignments[target];
+          state.assignmentName = data.assignmentName || target;
+          state.assignmentDetails = data.assignmentDetails || '';
+          state.maxScore = data.maxScore || 100;
+          state.grades = data.grades || [];
+          state.roster = new Map(data.roster || []);
+          state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
+          state.savedAssignmentName = target;
+          localStorage.setItem('the_gradest_active_assignment_name', target);
+          scanner.setMaxScore(state.maxScore);
+          inputAssignName.value = state.assignmentName;
+          inputAssignDetails.value = state.assignmentDetails;
+          inputMaxScore.value = state.maxScore;
+          updateAssignmentsDropdown();
+          showToast('Assignment Switched', `Routing grades to "${target}"`, 'info');
+        } else {
+          // Unknown assignment — warn but continue saving to current
+          showToast('Unknown Assignment QR', `Sheet QR says "${target}" but that assignment is not saved. Grade saved to current assignment.`, 'warning');
+        }
+      }
+    }
+
+    state.assignmentName = inputAssignName.value.trim() || 'Quiz 1';
     
     // Set UI Fields
     scanOutAssignment.textContent = state.assignmentName;

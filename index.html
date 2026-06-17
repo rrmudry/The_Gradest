@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="style.css">
   <!-- Load jsPDF from CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- QR Code libraries: generator (for printing) + decoder (for scanning) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body>
 
@@ -165,6 +168,20 @@
             <div class="panel-header">
               <h2 class="panel-title">Scanner Output</h2>
               <span id="scan-status-text" class="badge badge-warning">Scanner Offline</span>
+              <span id="qr-lock-badge" style="
+                display: inline-flex;
+                align-items: center;
+                gap: 0.3rem;
+                padding: 0.2rem 0.6rem;
+                border-radius: 999px;
+                font-size: 0.72rem;
+                font-weight: 600;
+                background: rgba(148,163,184,0.1);
+                color: var(--text-secondary);
+                border: 1px solid var(--border-color);
+                white-space: nowrap;
+                transition: all 0.3s ease;
+              ">⬜ No QR detected</span>
             </div>
             
             <div id="scanner-stats-container" style="display: none; flex-direction: column; gap: 1rem;">

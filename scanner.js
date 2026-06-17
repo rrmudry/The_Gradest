@@ -46,6 +46,11 @@ class BubbleScanner {
     // Tracking state
     this.trackedAnchors = [null, null, null, null];
     
+    // QR Code detection state (for mixed-stack assignment routing)
+    this.lastDetectedQR = null;      // Last decoded QR string (assignment name)
+    this.lastQRTimestamp = 0;        // performance.now() timestamp of last QR detection
+    this.QR_TTL_MS = 3000;           // How long (ms) a detected QR stays valid
+
     // Audio synthesis setup for scan feedback
     this.audioCtx = null;
 
@@ -245,6 +250,23 @@ class BubbleScanner {
     }
 
     this.pCtx.drawImage(this.video, srcX, srcY, srcW, srcH, 0, 0, this.width, this.height);
+
+    // 1b. Run jsQR on the raw frame to detect assignment QR codes
+    if (typeof jsQR !== 'undefined') {
+      const rawData = this.pCtx.getImageData(0, 0, this.width, this.height);
+      const qrCode = jsQR(rawData.data, this.width, this.height, { inversionAttempts: 'dontInvert' });
+      if (qrCode && qrCode.data) {
+        this.lastDetectedQR = qrCode.data.trim();
+        this.lastQRTimestamp = performance.now();
+      } else if (performance.now() - this.lastQRTimestamp > this.QR_TTL_MS) {
+        // TTL expired — clear the cached QR
+        this.lastDetectedQR = null;
+      }
+      // Notify app of current QR state on every frame
+      if (this.options.onQRChange) {
+        this.options.onQRChange(this.lastDetectedQR);
+      }
+    }
 
     // 2. Clear output canvas and draw processed video frame
     this.ctx.clearRect(0, 0, this.width, this.height);
@@ -744,7 +766,7 @@ class BubbleScanner {
             
             // Trigger callback
             if (this.options.onScanSuccess) {
-              this.options.onScanSuccess(studentIdStr, parsedScoreVal);
+              this.options.onScanSuccess(studentIdStr, parsedScoreVal, this.lastDetectedQR);
             }
             
             // Trigger lockout (e.g. 30 frames or 1.0 second of cool down to prevent double scanning)
@@ -853,7 +875,8 @@ class BubbleScanner {
       this.playBeep();
       return {
         studentId: this.lastScannedId,
-        score: this.lastScannedScore
+        score: this.lastScannedScore,
+        assignmentName: this.lastDetectedQR
       };
     }
     return null;
