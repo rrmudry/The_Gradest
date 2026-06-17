@@ -223,12 +223,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // QR Code embedded below the score bubbles (for mixed-stack auto-routing)
     let qrSvgContent = '';
-    if (typeof qrcode !== 'undefined' && state.assignmentName) {
+    if (typeof qrcode === 'undefined') {
+      console.error('QR library not loaded — check CDN script in index.html');
+    } else if (state.assignmentName) {
       try {
         const qr = qrcode(0, 'M');
         qr.addData(state.assignmentName);
         qr.make();
-        // Get the module count and build an SVG manually from the module matrix
         const moduleCount = qr.getModuleCount();
         const cellSize = 2.2;
         const qrSize = moduleCount * cellSize;
@@ -243,10 +244,9 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
         qrSvgContent += `</g>`;
-        // Label below QR
         qrSvgContent += `<text x="${qrX + qrSize / 2}" y="${qrY + qrSize + 6}" font-family="'Outfit', sans-serif" font-size="4.5" text-anchor="middle" fill="#475569">ASSIGNMENT ID</text>`;
       } catch(e) {
-        console.warn('QR generation failed:', e);
+        console.error('QR generation failed:', e);
       }
     }
 
