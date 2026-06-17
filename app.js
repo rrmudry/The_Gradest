@@ -30,6 +30,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const bubbleSheetPreview = document.getElementById('bubble-sheet-preview');
   const btnDownloadTuningPdf = document.getElementById('btn-download-tuning-pdf');
 
+  // Saved Assignments UI elements
+  const selectAssignments = document.getElementById('select-assignments');
+  const btnDeleteAssignment = document.getElementById('btn-delete-assignment');
+  const btnSaveAssignment = document.getElementById('btn-save-assignment');
+  const btnExportPortfolio = document.getElementById('btn-export-portfolio');
+  const btnImportPortfolio = document.getElementById('btn-import-portfolio');
+  const inputImportFile = document.getElementById('input-import-file');
+
   // Scanner UI elements
   const cameraSelector = document.getElementById('camera-selector');
   const btnToggleCamera = document.getElementById('btn-toggle-camera');
@@ -201,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ${html}
       </svg>
     `;
+    saveCurrentAssignmentDebounced(true);
   }
 
   // Live updates as form fields change
@@ -579,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
   inputSensitivity.addEventListener('input', () => {
     state.sensitivity = parseInt(inputSensitivity.value);
     scanner.setSensitivity(state.sensitivity);
+    saveCurrentAssignmentDebounced(true);
   });
 
   // Reset scan info fields
@@ -643,6 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGradesTable();
     updateStatsDashboard();
     renderRecentScansList();
+    saveCurrentAssignment(true);
   }
 
   // Recent scans sidebar rendering in Tab 2
@@ -789,6 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGradesTable();
     updateStatsDashboard();
     renderRecentScansList();
+    saveCurrentAssignment(true);
   }
 
   // Edit grade dialog controls
@@ -849,6 +861,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderGradesTable();
     updateStatsDashboard();
     renderRecentScansList();
+    saveCurrentAssignment(true);
   });
 
   // Clear all recorded grades
@@ -862,6 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGradesTable();
       updateStatsDashboard();
       renderRecentScansList();
+      saveCurrentAssignment(true);
     }
   });
 
@@ -969,6 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGradesTable();
       updateStatsDashboard();
       renderRecentScansList();
+      saveCurrentAssignment(true);
     } catch (err) {
       console.error(err);
       alert("Error parsing CSV roster file. Please verify its formatting.");
@@ -1047,7 +1062,224 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, "&#039;");
   }
 
+  // --- SAVED ASSIGNMENTS LOGIC ---
+
+  let saveDebounceTimeout = null;
+  function saveCurrentAssignmentDebounced(silent = true) {
+    if (saveDebounceTimeout) clearTimeout(saveDebounceTimeout);
+    saveDebounceTimeout = setTimeout(() => {
+      saveCurrentAssignment(silent);
+    }, 400);
+  }
+
+  function getStoredAssignments() {
+    try {
+      const data = localStorage.getItem('the_gradest_assignments');
+      return data ? JSON.parse(data) : {};
+    } catch (e) {
+      console.error("Error reading localStorage:", e);
+      return {};
+    }
+  }
+
+  function setStoredAssignments(assignments) {
+    try {
+      localStorage.setItem('the_gradest_assignments', JSON.stringify(assignments));
+    } catch (e) {
+      console.error("Error writing localStorage:", e);
+      showToast("Storage Error", "Local storage is full or disabled.", "error");
+    }
+  }
+
+  function updateAssignmentsDropdown() {
+    const list = getStoredAssignments();
+    const names = Object.keys(list);
+    
+    selectAssignments.innerHTML = '<option value="">-- Start New Assignment --</option>';
+    
+    names.forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      selectAssignments.appendChild(option);
+    });
+
+    const activeName = localStorage.getItem('the_gradest_active_assignment_name') || "";
+    if (activeName && list[activeName]) {
+      selectAssignments.value = activeName;
+      btnDeleteAssignment.disabled = false;
+    } else {
+      selectAssignments.value = "";
+      btnDeleteAssignment.disabled = true;
+    }
+  }
+
+  function saveCurrentAssignment(silent = false) {
+    const name = state.assignmentName.trim();
+    if (!name) {
+      if (!silent) showToast("Save Failed", "Please enter an assignment name.", "error");
+      return;
+    }
+
+    const assignments = getStoredAssignments();
+    assignments[name] = {
+      assignmentName: state.assignmentName,
+      assignmentDetails: state.assignmentDetails,
+      maxScore: state.maxScore,
+      grades: state.grades,
+      roster: Array.from(state.roster.entries()),
+      sensitivity: state.sensitivity,
+      timestamp: Date.now()
+    };
+
+    setStoredAssignments(assignments);
+    localStorage.setItem('the_gradest_active_assignment_name', name);
+    
+    updateAssignmentsDropdown();
+
+    if (!silent) {
+      showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
+    }
+  }
+
+  function loadAssignment(name) {
+    if (!name) {
+      state.assignmentName = "Quiz 1";
+      state.assignmentDetails = "Chapter 1-3 Review. Fill in bubbles completely.";
+      state.maxScore = 100;
+      state.grades = [];
+      state.roster.clear();
+      state.sensitivity = 22;
+      localStorage.removeItem('the_gradest_active_assignment_name');
+    } else {
+      const assignments = getStoredAssignments();
+      const data = assignments[name];
+      if (!data) return;
+
+      state.assignmentName = data.assignmentName || name;
+      state.assignmentDetails = data.assignmentDetails || "";
+      state.maxScore = data.maxScore || 100;
+      state.grades = data.grades || [];
+      state.roster = new Map(data.roster || []);
+      state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
+      
+      localStorage.setItem('the_gradest_active_assignment_name', name);
+    }
+
+    inputAssignName.value = state.assignmentName;
+    inputAssignDetails.value = state.assignmentDetails;
+    inputMaxScore.value = state.maxScore;
+    inputSensitivity.value = state.sensitivity;
+    scanner.setMaxScore(state.maxScore);
+    scanner.setSensitivity(state.sensitivity);
+
+    renderLivePreview();
+    renderGradesTable();
+    updateStatsDashboard();
+    renderRecentScansList();
+    updateAssignmentsDropdown();
+
+    showToast("Assignment Loaded", `Loaded "${state.assignmentName}".`, "success");
+  }
+
+  function deleteAssignment(name) {
+    if (!name) return;
+    if (!confirm(`Are you sure you want to delete "${name}"? This will erase all its roster data and scores.`)) return;
+
+    const assignments = getStoredAssignments();
+    delete assignments[name];
+    setStoredAssignments(assignments);
+
+    const activeName = localStorage.getItem('the_gradest_active_assignment_name');
+    if (activeName === name) {
+      localStorage.removeItem('the_gradest_active_assignment_name');
+      loadAssignment("");
+    } else {
+      updateAssignmentsDropdown();
+    }
+
+    showToast("Assignment Deleted", `"${name}" removed from local storage.`, "warning");
+  }
+
+  function exportPortfolio() {
+    const assignments = getStoredAssignments();
+    const activeName = localStorage.getItem('the_gradest_active_assignment_name') || "";
+    
+    const portfolio = {
+      version: "1.0",
+      activeAssignmentName: activeName,
+      assignments: assignments
+    };
+
+    const blob = new Blob([JSON.stringify(portfolio, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `the_gradest_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast("Backup Created", "Saved portfolio backup to your downloads.", "success");
+  }
+
+  function importPortfolio(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data || !data.assignments) {
+          throw new Error("Invalid format. Missing assignments object.");
+        }
+
+        const confirmed = confirm("Are you sure you want to import this file? This will overwrite or merge with your existing saved assignments.");
+        if (!confirmed) return;
+
+        const existing = getStoredAssignments();
+        Object.assign(existing, data.assignments);
+        setStoredAssignments(existing);
+
+        if (data.activeAssignmentName && existing[data.activeAssignmentName]) {
+          localStorage.setItem('the_gradest_active_assignment_name', data.activeAssignmentName);
+          loadAssignment(data.activeAssignmentName);
+        } else {
+          updateAssignmentsDropdown();
+        }
+
+        showToast("Backup Restored", `Imported ${Object.keys(data.assignments).length} assignments.`, "success");
+      } catch (err) {
+        console.error(err);
+        alert("Error parsing backup file: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Bind Event Listeners for Save/Load panel
+  selectAssignments.addEventListener('change', (e) => loadAssignment(e.target.value));
+  btnDeleteAssignment.addEventListener('click', () => deleteAssignment(selectAssignments.value));
+  btnSaveAssignment.addEventListener('click', () => saveCurrentAssignment(false));
+  btnExportPortfolio.addEventListener('click', exportPortfolio);
+  inputImportFile.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      importPortfolio(e.target.files[0]);
+    }
+  });
+
   // --- APPLICATION SETUP INIT ---
   renderLivePreview();
   loadCameras();
+  updateAssignmentsDropdown();
+
+  // Load last active assignment on startup if it exists
+  const activeNameOnStartup = localStorage.getItem('the_gradest_active_assignment_name') || "";
+  if (activeNameOnStartup) {
+    const listOnStartup = getStoredAssignments();
+    if (listOnStartup[activeNameOnStartup]) {
+      loadAssignment(activeNameOnStartup);
+    }
+  }
 });
