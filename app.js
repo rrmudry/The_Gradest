@@ -71,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportCsv = document.getElementById('btn-export-csv');
   const btnClearGrades = document.getElementById('btn-clear-grades');
   const gradesTableBody = document.getElementById('grades-table-body');
+  const gradesSelectAssignments = document.getElementById('grades-select-assignments');
+  const gradesAssignmentBadge = document.getElementById('grades-assignment-badge');
   
   const statTotal = document.getElementById('stat-total');
   const statAverage = document.getElementById('stat-average');
@@ -1096,22 +1098,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const list = getStoredAssignments();
     const names = Object.keys(list);
     
-    selectAssignments.innerHTML = '<option value="">-- Start New Assignment --</option>';
-    
-    names.forEach(name => {
-      const option = document.createElement('option');
-      option.value = name;
-      option.textContent = name;
-      selectAssignments.appendChild(option);
-    });
+    // Build the options HTML (reused for both dropdowns)
+    const noOptionHtml = '<option value="">-- Start New Assignment --</option>';
+    const noOptionGradesHtml = '<option value="">-- Select an Assignment --</option>';
+    const optionsHtml = names.map(n =>
+      `<option value="${n}">${n}</option>`
+    ).join('');
+
+    selectAssignments.innerHTML = noOptionHtml + optionsHtml;
+    gradesSelectAssignments.innerHTML = noOptionGradesHtml + optionsHtml;
 
     const activeName = localStorage.getItem('the_gradest_active_assignment_name') || "";
     if (activeName && list[activeName]) {
       selectAssignments.value = activeName;
+      gradesSelectAssignments.value = activeName;
       btnDeleteAssignment.disabled = false;
+      gradesAssignmentBadge.textContent = activeName;
+      gradesAssignmentBadge.style.background = 'rgba(99,102,241,0.15)';
+      gradesAssignmentBadge.style.color = 'var(--accent-primary)';
     } else {
       selectAssignments.value = "";
+      gradesSelectAssignments.value = "";
       btnDeleteAssignment.disabled = true;
+      gradesAssignmentBadge.textContent = 'No assignment active';
+      gradesAssignmentBadge.style.background = 'rgba(148,163,184,0.1)';
+      gradesAssignmentBadge.style.color = 'var(--text-secondary)';
     }
   }
 
@@ -1283,6 +1294,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Bind Event Listeners for Save/Load panel
   selectAssignments.addEventListener('change', (e) => loadAssignment(e.target.value));
+  gradesSelectAssignments.addEventListener('change', (e) => loadAssignment(e.target.value));
   btnDeleteAssignment.addEventListener('click', () => deleteAssignment(selectAssignments.value));
   btnSaveAssignment.addEventListener('click', () => saveCurrentAssignment(false));
   btnExportPortfolio.addEventListener('click', exportPortfolio);
