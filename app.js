@@ -1122,6 +1122,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const assignments = getStoredAssignments();
+
+    // Silent auto-saves only update an assignment that already exists.
+    // New assignments are only persisted when the user explicitly clicks "Save Current".
+    if (silent && !assignments[name]) {
+      return;
+    }
+
     assignments[name] = {
       assignmentName: state.assignmentName,
       assignmentDetails: state.assignmentDetails,
