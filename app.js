@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     activeTab: 'generate',
     selectedCameraId: null,
     sensitivity: 22,
-    editingGradeIndex: null
+    editingGradeIndex: null,
+    savedAssignmentName: null // The name under which this assignment was last explicitly saved/loaded
   };
 
   // DOM Elements
@@ -1115,17 +1116,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function saveCurrentAssignment(silent = false) {
-    const name = state.assignmentName.trim();
-    if (!name) {
-      if (!silent) showToast("Save Failed", "Please enter an assignment name.", "error");
+    const assignments = getStoredAssignments();
+
+    if (silent) {
+      // Auto-save: only write back to the exact name that was last explicitly saved/loaded.
+      // This prevents intermediate keystrokes (e.g. typing "Quiz 123" through "Quiz 1", "Quiz 12")
+      // from creating unwanted entries.
+      const pinnedName = state.savedAssignmentName;
+      if (!pinnedName || !assignments[pinnedName]) return;
+
+      assignments[pinnedName] = {
+        assignmentName: state.assignmentName,
+        assignmentDetails: state.assignmentDetails,
+        maxScore: state.maxScore,
+        grades: state.grades,
+        roster: Array.from(state.roster.entries()),
+        sensitivity: state.sensitivity,
+        timestamp: Date.now()
+      };
+      setStoredAssignments(assignments);
       return;
     }
 
-    const assignments = getStoredAssignments();
-
-    // Silent auto-saves only update an assignment that already exists.
-    // New assignments are only persisted when the user explicitly clicks "Save Current".
-    if (silent && !assignments[name]) {
+    // Explicit save: use the current input name and register it as the pinned name.
+    const name = state.assignmentName.trim();
+    if (!name) {
+      showToast("Save Failed", "Please enter an assignment name.", "error");
       return;
     }
 
@@ -1140,13 +1156,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     setStoredAssignments(assignments);
+    state.savedAssignmentName = name;
     localStorage.setItem('the_gradest_active_assignment_name', name);
     
     updateAssignmentsDropdown();
-
-    if (!silent) {
-      showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
-    }
+    showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
   }
 
   function loadAssignment(name) {
@@ -1157,6 +1171,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.grades = [];
       state.roster.clear();
       state.sensitivity = 22;
+      state.savedAssignmentName = null; // No pinned name; not yet saved
       localStorage.removeItem('the_gradest_active_assignment_name');
     } else {
       const assignments = getStoredAssignments();
@@ -1169,6 +1184,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.grades = data.grades || [];
       state.roster = new Map(data.roster || []);
       state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
+      state.savedAssignmentName = name; // Pin to the loaded name for auto-saves
       
       localStorage.setItem('the_gradest_active_assignment_name', name);
     }
