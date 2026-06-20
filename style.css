@@ -825,3 +825,123 @@ tr:hover td {
   font-size: 0.95rem;
   max-width: 300px;
 }
+
+/* Authentication Gate Styles */
+.auth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg-primary);
+  background-image: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 60%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  backdrop-filter: blur(8px);
+}
+
+.auth-card {
+  background-color: rgba(21, 29, 48, 0.75);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 3rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-lg), 0 0 40px rgba(99, 102, 241, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.auth-logo {
+  background: linear-gradient(135deg, var(--primary), var(--accent-purple));
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 2rem;
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.5);
+  color: #fff;
+  margin-bottom: 1.5rem;
+}
+
+.auth-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  background: linear-gradient(to right, #ffffff, #a5b4fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.auth-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
+.auth-button-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin-bottom: 1rem;
+}
+
+.auth-error {
+  background-color: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  color: var(--accent-rose);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  font-size: 0.85rem;
+  width: 100%;
+  margin-top: 1rem;
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.auth-user-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.auth-user-badge button {
+  background: none;
+  border: none;
+  color: var(--accent-rose);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+}
+
+.auth-user-badge button:hover {
+  text-decoration: underline;
+}
+
+body.auth-gated header,
+body.auth-gated main {
+  filter: blur(10px);
+  pointer-events: none;
+}

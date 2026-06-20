@@ -11,14 +11,36 @@
   <!-- QR Code libraries: generator (for printing) + decoder (for scanning) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <!-- Google Identity Services for Auth restriction -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
-<body>
+<body class="auth-gated">
+
+  <!-- Authentication Gate Overlay -->
+  <div id="auth-gate" class="auth-overlay">
+    <div class="auth-card">
+      <div class="auth-logo">G</div>
+      <h1 class="auth-title">The Gradest</h1>
+      <p class="auth-subtitle">Access to this application is restricted. Please sign in with your Google Account to continue.</p>
+      <div id="g-signin-btn-container" class="auth-button-container"></div>
+      <div id="auth-error-msg" class="auth-error">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        <span id="auth-error-text">Access Denied: You are not authorized.</span>
+      </div>
+    </div>
+  </div>
 
   <header>
     <div class="nav-container">
       <div class="logo-section">
         <div class="logo-icon">G</div>
         <div class="logo-text">The Gradest</div>
+      </div>
+      <div id="auth-user-badge" class="auth-user-badge" style="display: none;">
+        <span id="auth-user-email"></span>
+        <button id="btn-signout" type="button">Sign Out</button>
       </div>
       <nav class="nav-tabs" role="tablist">
         <button id="tab-btn-generate" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-generate">
@@ -378,6 +400,115 @@
 
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toast-container" class="scan-toast-container"></div>
+
+  <!-- Authentication Gate Script -->
+  <script>
+    (function() {
+      const AUTHORIZED_EMAIL = "rmudry@orangeusd.org";
+      // Google OAuth Client ID for rrmudry.github.io / localhost
+      const GOOGLE_CLIENT_ID = "1035651528659-3j1683uqu5v0lgrf4m1sdb5gq7rmfop2.apps.googleusercontent.com";
+
+      function parseJwt(token) {
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          return JSON.parse(jsonPayload);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function handleCredentialResponse(response) {
+        const payload = parseJwt(response.credential);
+        if (payload && payload.email) {
+          if (payload.email.toLowerCase() === AUTHORIZED_EMAIL.toLowerCase()) {
+            sessionStorage.setItem("auth_email", payload.email);
+            sessionStorage.setItem("auth_token", response.credential);
+            showApp(payload.email);
+          } else {
+            showError("Access Denied: Account " + payload.email + " is not authorized to access this application.");
+            if (window.google && google.accounts && google.accounts.id) {
+              google.accounts.id.disableAutoPlay();
+            }
+          }
+        } else {
+          showError("Authentication failed. Please try again.");
+        }
+      }
+
+      function showApp(email) {
+        document.body.classList.remove("auth-gated");
+        document.getElementById("auth-gate").style.display = "none";
+        
+        const badge = document.getElementById("auth-user-badge");
+        if (badge) {
+          badge.style.display = "flex";
+          document.getElementById("auth-user-email").textContent = email;
+        }
+      }
+
+      function showError(msg) {
+        document.body.classList.add("auth-gated");
+        document.getElementById("auth-gate").style.display = "flex";
+        const errBox = document.getElementById("auth-error-msg");
+        const errText = document.getElementById("auth-error-text");
+        errText.textContent = msg;
+        errBox.style.display = "flex";
+      }
+
+      function signOut() {
+        sessionStorage.removeItem("auth_email");
+        sessionStorage.removeItem("auth_token");
+        if (window.google && google.accounts && google.accounts.id) {
+          google.accounts.id.disableAutoPlay();
+        }
+        window.location.reload();
+      }
+
+      // Initialize authentication
+      function initAuth() {
+        const savedEmail = sessionStorage.getItem("auth_email");
+        if (savedEmail && savedEmail.toLowerCase() === AUTHORIZED_EMAIL.toLowerCase()) {
+          showApp(savedEmail);
+          document.getElementById("btn-signout").addEventListener("click", signOut);
+          return;
+        }
+
+        if (window.google && google.accounts && google.accounts.id) {
+          google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleCredentialResponse,
+            auto_select: true
+          });
+
+          google.accounts.id.renderButton(
+            document.getElementById("g-signin-btn-container"),
+            { theme: "outline", size: "large", type: "standard", shape: "pill", text: "signin_with", logo_alignment: "left" }
+          );
+
+          google.accounts.id.prompt();
+        } else {
+          // Retry if library not loaded yet
+          setTimeout(initAuth, 100);
+        }
+        
+        const signOutBtn = document.getElementById("btn-signout");
+        if (signOutBtn) {
+          signOutBtn.addEventListener("click", signOut);
+        }
+      }
+
+      // Run setup
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initAuth);
+      } else {
+        initAuth();
+      }
+    })();
+  </script>
 
   <!-- Include App & Scanner scripts -->
   <script src="scanner.js"></script>
