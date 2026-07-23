@@ -788,14 +788,33 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    state.assignmentName = inputAssignName.value.trim() || 'Quiz 1';
+  // Smart Roster Matching Helper: Handles leading zero padding differences (e.g. 012345 vs 12345)
+  function lookupRosterName(studentId) {
+    if (!studentId || state.roster.size === 0) return "Not in roster";
+    
+    // Direct match
+    if (state.roster.has(studentId)) return state.roster.get(studentId);
+    
+    // Clean numeric comparison (ignoring leading zeros)
+    const cleanId = studentId.replace(/^0+/, '');
+    for (let [rId, name] of state.roster.entries()) {
+      const cleanRId = rId.replace(/^0+/, '');
+      if (cleanRId === cleanId && cleanId.length > 0) {
+        return name;
+      }
+    }
+    
+    return "Not in roster";
+  }
+
+  state.assignmentName = inputAssignName.value.trim() || 'Quiz 1';
     
     // Set UI Fields
     scanOutAssignment.textContent = state.assignmentName;
     scanOutMaxScore.textContent = state.maxScore;
     
     scanOutStudentId.textContent = studentId;
-    const studentName = state.roster.get(studentId) || "Not in roster";
+    const studentName = lookupRosterName(studentId);
     scanOutStudentName.textContent = studentName;
     
     scanOutScore.textContent = score;
