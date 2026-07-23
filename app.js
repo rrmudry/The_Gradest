@@ -1499,6 +1499,8 @@ document.addEventListener('DOMContentLoaded', () => {
       roster: data.roster || [],
       sensitivity: data.sensitivity,
       userEmail: currentUserEmail,
+      isProctorAssessment: false,
+      sourceType: 'the_gradest',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
