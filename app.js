@@ -1403,11 +1403,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const assignments = getStoredAssignments();
 
-    // If the assignment name was changed, clean up old entry
-    if (state.savedAssignmentName && state.savedAssignmentName !== name && assignments[state.savedAssignmentName]) {
-      delete assignments[state.savedAssignmentName];
+    if (silent) {
+      // Auto-save (live updates):
+      // Only auto-save if we are editing an ALREADY pinned assignment under the exact same name.
+      // Do NOT auto-delete or overwrite existing assignments during casual typing.
+      const pinnedName = state.savedAssignmentName;
+      if (!pinnedName || pinnedName !== name || !assignments[pinnedName]) {
+        return;
+      }
+
+      assignments[pinnedName] = {
+        assignmentName: state.assignmentName,
+        assignmentDetails: state.assignmentDetails,
+        maxScore: state.maxScore,
+        grades: state.grades,
+        roster: Array.from(state.roster.entries()),
+        sensitivity: state.sensitivity,
+        timestamp: Date.now()
+      };
+      setStoredAssignments(assignments);
+      return;
     }
 
+    // Explicit Save ("Save Current" button click):
     assignments[name] = {
       assignmentName: state.assignmentName,
       assignmentDetails: state.assignmentDetails,
@@ -1423,10 +1441,7 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('the_gradest_active_assignment_name', name);
 
     updateAssignmentsDropdown();
-
-    if (!silent) {
-      showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
-    }
+    showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
   }
 
   function loadAssignment(name) {

@@ -259,6 +259,27 @@ class BubbleScanner {
         this.lastDetectedQR = qrCode.data.trim();
         this.lastQRTimestamp = performance.now();
       } else if (performance.now() - this.lastQRTimestamp > this.QR_TTL_MS) {
+        this.lastDetectedQR = null;
+      }
+      if (this.options.onQRChange) {
+        this.options.onQRChange(this.lastDetectedQR);
+      }
+    }
+
+    // Reset frame diagnostics object
+    this.lastDiagnostics = {
+      timestamp: performance.now(),
+      width: this.width,
+      height: this.height,
+      quadFound: false,
+      quadCorners: null,
+      quadMetrics: null,
+      globalMin: 0,
+      globalMax: 0,
+      dynThreshold: 0,
+      adaptiveState: null,
+      idBubbles: [],
+      scoreBubbles: [],
       studentId: "",
       score: -1,
       maxScore: this.options.maxScore,
