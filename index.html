@@ -11,9 +11,10 @@
   <!-- QR Code libraries: generator (for printing) + decoder (for scanning) -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-  <!-- Firebase App & Auth SDKs -->
+  <!-- Firebase App, Auth & Firestore SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body class="auth-gated">
 
@@ -454,6 +455,10 @@
         if (badge) {
           badge.style.display = "flex";
           document.getElementById("auth-user-email").textContent = email;
+        }
+
+        if (window.initFirestoreSync) {
+          window.initFirestoreSync(email);
         }
       }
 

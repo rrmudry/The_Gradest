@@ -1360,6 +1360,91 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast("New Assignment Created", "Settings cleared. Enter your new assignment details.", "info");
   }
 
+  // --- FIREBASE FIRESTORE REAL-TIME CLOUD SYNC ENGINE ---
+  let firestoreDb = null;
+  let currentUserEmail = null;
+  let firestoreUnsubscribe = null;
+
+  window.initFirestoreSync = function(userEmail) {
+    if (!window.firebase || !firebase.firestore) return;
+    try {
+      firestoreDb = firebase.firestore();
+      currentUserEmail = userEmail.toLowerCase();
+
+      if (firestoreUnsubscribe) firestoreUnsubscribe();
+
+      // Listen to real-time updates for assignments belonging to the authorized user
+      firestoreUnsubscribe = firestoreDb
+        .collection('gradest_assignments')
+        .where('userEmail', '==', currentUserEmail)
+        .onSnapshot((snapshot) => {
+          const remoteAssignments = {};
+          snapshot.forEach(doc => {
+            remoteAssignments[doc.id] = doc.data();
+          });
+
+          const localAssignments = getStoredAssignments();
+          let hasChanges = false;
+
+          Object.keys(remoteAssignments).forEach(name => {
+            localAssignments[name] = remoteAssignments[name];
+            hasChanges = true;
+          });
+
+          if (hasChanges) {
+            setStoredAssignments(localAssignments);
+            updateAssignmentsDropdown();
+
+            const activeName = localStorage.getItem('the_gradest_active_assignment_name');
+            if (activeName && localAssignments[activeName]) {
+              const data = localAssignments[activeName];
+              state.grades = data.grades || [];
+              state.roster = new Map(data.roster || []);
+              renderGradesTable();
+              updateStatsDashboard();
+              renderRecentScansList();
+            }
+          }
+        }, (err) => {
+          console.error("Firestore real-time sync error:", err);
+        });
+    } catch (e) {
+      console.error("Firestore initialization error:", e);
+    }
+  };
+
+  function syncAssignmentToFirestore(name) {
+    if (!firestoreDb || !currentUserEmail || !name) return;
+    const assignments = getStoredAssignments();
+    const data = assignments[name];
+    if (!data) return;
+
+    const payload = {
+      assignmentName: data.assignmentName,
+      assignmentDetails: data.assignmentDetails || "",
+      maxScore: data.maxScore,
+      grades: data.grades || [],
+      roster: data.roster || [],
+      sensitivity: data.sensitivity,
+      userEmail: currentUserEmail,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    firestoreDb.collection('gradest_assignments').doc(name).set(payload, { merge: true }).catch(err => {
+      console.error("Firestore write failed:", err);
+    });
+  }
+
+  function deleteAssignmentFromFirestore(name, oldName) {
+    if (!firestoreDb || !currentUserEmail) return;
+    if (oldName && oldName !== name) {
+      firestoreDb.collection('gradest_assignments').doc(oldName).delete().catch(err => console.error("Firestore delete old doc failed:", err));
+    }
+    if (name) {
+      firestoreDb.collection('gradest_assignments').doc(name).delete().catch(err => console.error("Firestore delete doc failed:", err));
+    }
+  }
+
   function saveCurrentAssignment(silent = false) {
     const name = state.assignmentName.trim();
     if (!name) {
@@ -1368,10 +1453,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const assignments = getStoredAssignments();
+    const oldName = state.savedAssignmentName;
 
     // If the assignment name was changed, clean up old entry
-    if (state.savedAssignmentName && state.savedAssignmentName !== name && assignments[state.savedAssignmentName]) {
-      delete assignments[state.savedAssignmentName];
+    if (oldName && oldName !== name && assignments[oldName]) {
+      delete assignments[oldName];
+      deleteAssignmentFromFirestore(null, oldName);
     }
 
     assignments[name] = {
@@ -1390,8 +1477,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateAssignmentsDropdown();
 
+    // Persist to Cloud Firestore
+    syncAssignmentToFirestore(name);
+
     if (!silent) {
-      showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
+      showToast("Assignment Saved", `"${name}" saved to local storage & Cloud Firestore.`, "success");
     }
   }
 
@@ -1438,6 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const assignments = getStoredAssignments();
     delete assignments[name];
     setStoredAssignments(assignments);
+    deleteAssignmentFromFirestore(name);
 
     const activeName = localStorage.getItem('the_gradest_active_assignment_name');
     if (activeName === name) {
@@ -1447,7 +1538,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateAssignmentsDropdown();
     }
 
-    showToast("Assignment Deleted", `"${name}" removed from local storage.`, "warning");
+    showToast("Assignment Deleted", `"${name}" removed from local storage and Cloud Firestore.`, "warning");
   }
 
   function exportPortfolio() {
