@@ -1181,10 +1181,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 400);
   }
 
+  const DEFAULT_ASSIGNMENTS = {
+    "Quiz 1": {
+      assignmentName: "Quiz 1",
+      assignmentDetails: "Chapter 1-3 Review. Fill in bubbles completely.",
+      maxScore: 100,
+      grades: [],
+      roster: [],
+      sensitivity: 22,
+      timestamp: Date.now()
+    },
+    "Unit 7 - Electricity & Magnetism": {
+      assignmentName: "Unit 7 - Electricity & Magnetism",
+      assignmentDetails: "Circuits, Ohm's Law, and magnetic fields. Fill in bubbles completely.",
+      maxScore: 100,
+      grades: [],
+      roster: [],
+      sensitivity: 22,
+      timestamp: Date.now()
+    }
+  };
+
   function getStoredAssignments() {
     try {
       const data = localStorage.getItem('the_gradest_assignments');
-      return data ? JSON.parse(data) : {};
+      if (!data) {
+        localStorage.setItem('the_gradest_assignments', JSON.stringify(DEFAULT_ASSIGNMENTS));
+        return DEFAULT_ASSIGNMENTS;
+      }
+      return JSON.parse(data);
     } catch (e) {
       console.error("Error reading localStorage:", e);
       return {};
@@ -1233,33 +1258,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function saveCurrentAssignment(silent = false) {
-    const assignments = getStoredAssignments();
-
-    if (silent) {
-      // Auto-save: only write back to the exact name that was last explicitly saved/loaded.
-      // This prevents intermediate keystrokes (e.g. typing "Quiz 123" through "Quiz 1", "Quiz 12")
-      // from creating unwanted entries.
-      const pinnedName = state.savedAssignmentName;
-      if (!pinnedName || !assignments[pinnedName]) return;
-
-      assignments[pinnedName] = {
-        assignmentName: state.assignmentName,
-        assignmentDetails: state.assignmentDetails,
-        maxScore: state.maxScore,
-        grades: state.grades,
-        roster: Array.from(state.roster.entries()),
-        sensitivity: state.sensitivity,
-        timestamp: Date.now()
-      };
-      setStoredAssignments(assignments);
+    const name = state.assignmentName.trim();
+    if (!name) {
+      if (!silent) showToast("Save Failed", "Please enter an assignment name.", "error");
       return;
     }
 
-    // Explicit save: use the current input name and register it as the pinned name.
-    const name = state.assignmentName.trim();
-    if (!name) {
-      showToast("Save Failed", "Please enter an assignment name.", "error");
-      return;
+    const assignments = getStoredAssignments();
+
+    // If the assignment name was changed, clean up old entry
+    if (state.savedAssignmentName && state.savedAssignmentName !== name && assignments[state.savedAssignmentName]) {
+      delete assignments[state.savedAssignmentName];
     }
 
     assignments[name] = {
@@ -1275,9 +1284,12 @@ document.addEventListener('DOMContentLoaded', () => {
     setStoredAssignments(assignments);
     state.savedAssignmentName = name;
     localStorage.setItem('the_gradest_active_assignment_name', name);
-    
+
     updateAssignmentsDropdown();
-    showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
+
+    if (!silent) {
+      showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
+    }
   }
 
   function loadAssignment(name) {
@@ -1288,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.grades = [];
       state.roster.clear();
       state.sensitivity = 22;
-      state.savedAssignmentName = null; // No pinned name; not yet saved
+      state.savedAssignmentName = null;
       localStorage.removeItem('the_gradest_active_assignment_name');
     } else {
       const assignments = getStoredAssignments();
@@ -1301,7 +1313,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.grades = data.grades || [];
       state.roster = new Map(data.roster || []);
       state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
-      state.savedAssignmentName = name; // Pin to the loaded name for auto-saves
+      state.savedAssignmentName = name;
       
       localStorage.setItem('the_gradest_active_assignment_name', name);
     }
