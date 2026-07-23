@@ -1527,6 +1527,16 @@ document.addEventListener('DOMContentLoaded', () => {
   loadCameras();
   updateAssignmentsDropdown();
 
+  // Set Footer Timestamp
+  const siteTimestampElem = document.getElementById('site-updated-timestamp');
+  if (siteTimestampElem) {
+    siteTimestampElem.textContent = new Date().toLocaleString("en-US", {
+      timeZone: "America/Los_Angeles",
+      dateStyle: "medium",
+      timeStyle: "short"
+    });
+  }
+
   // Load last active assignment on startup if it exists
   const activeNameOnStartup = localStorage.getItem('the_gradest_active_assignment_name') || "";
   if (activeNameOnStartup) {
