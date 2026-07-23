@@ -151,36 +151,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- TAB 1: SHEET GENERATOR PREVIEW & PDF ---
   
-  // SVG multi-line text wrapping helper
-  function wrapTextSVG(text, x, startY, lineHeight = 7.5, maxCharsPerLine = 48, maxLines = 2) {
-    if (!text) return '';
+  // Canvas-based text measurement for 100% identical SVG & PDF word wrapping
+  const measureCanvas = document.createElement('canvas').getContext('2d');
+
+  function getWrappedTextLines(text, maxWidthPt = 195) {
+    if (!text) return [];
+    measureCanvas.font = "5.8px Helvetica, Arial, sans-serif";
     const words = text.split(/\s+/);
     const lines = [];
     let currentLine = "";
 
     for (const word of words) {
-      if ((currentLine + " " + word).trim().length <= maxCharsPerLine) {
-        currentLine = (currentLine + " " + word).trim();
+      const testLine = currentLine ? currentLine + " " + word : word;
+      const width = measureCanvas.measureText(testLine).width;
+      if (width <= maxWidthPt) {
+        currentLine = testLine;
       } else {
         if (currentLine) lines.push(currentLine);
         currentLine = word;
-        if (lines.length >= maxLines - 1) break;
       }
     }
-    if (currentLine && lines.length < maxLines) {
-      lines.push(currentLine);
-    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  }
 
-    const totalWordsInLines = lines.join(" ").split(/\s+/).length;
-    if (totalWordsInLines < words.length && lines.length > 0) {
-      let last = lines[lines.length - 1];
-      if (last.length > maxCharsPerLine - 3) {
-        last = last.substring(0, maxCharsPerLine - 3);
+  function renderSVGDetails(text, x, startY, lineHeight = 7.5, maxLines = 2) {
+    const lines = getWrappedTextLines(text, 195);
+    if (lines.length === 0) return '';
+    
+    let displayLines = lines;
+    if (lines.length > maxLines) {
+      displayLines = lines.slice(0, maxLines);
+      let last = displayLines[maxLines - 1];
+      if (last.length > 40) {
+        last = last.substring(0, 40) + '...';
+      } else {
+        last = last + '...';
       }
-      lines[lines.length - 1] = last + "...";
+      displayLines[maxLines - 1] = last;
     }
 
-    return lines.map((line, idx) => 
+    return displayLines.map((line, idx) => 
       `<tspan x="${x}" y="${startY + idx * lineHeight}">${escapeHTML(line)}</tspan>`
     ).join('');
   }
@@ -210,11 +221,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <circle cx="235" cy="315" r="4.5" fill="black" />
 
       <!-- Assignment Info Header -->
-      <text x="25" y="34" font-family="'Outfit', sans-serif" font-size="9.5" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
-      <text font-family="'Outfit', sans-serif" font-size="5.8" fill="#475569">
-        ${wrapTextSVG(state.assignmentDetails, 25, 44, 7.5, 48, 2)}
+      <text x="25" y="34" font-family="Helvetica, Arial, sans-serif" font-size="9.5" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
+      <text font-family="Helvetica, Arial, sans-serif" font-size="5.8" fill="#475569">
+        ${renderSVGDetails(state.assignmentDetails, 25, 44, 7.5, 2)}
       </text>
-      <text x="25" y="62" font-family="'Outfit', sans-serif" font-size="6.8" font-weight="bold" fill="black">MAX SCORE: ${state.maxScore}</text>
+      <text x="25" y="62" font-family="Helvetica, Arial, sans-serif" font-size="6.8" font-weight="bold" fill="black">MAX SCORE: ${state.maxScore}</text>
 
       <!-- Student ID Label -->
       <text x="25" y="86" font-family="'Outfit', sans-serif" font-size="8" font-weight="bold" fill="black">STUDENT ID</text>
@@ -406,14 +417,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const rawDetails = isTuning ? "Use this card to evaluate webcam OMR thresholds and binarization." : assignDetails;
         
         // Wrap text to fit card width (up to 195pt)
-        const detailLines = doc.splitTextToSize(rawDetails, 195);
+        const detailLines = getWrappedTextLines(rawDetails, 195);
         if (detailLines.length > 0) {
           doc.text(detailLines[0], ox + 25, oy + 44);
         }
         if (detailLines.length > 1) {
           let line2 = detailLines[1];
           if (detailLines.length > 2) {
-            line2 = line2.substring(0, Math.min(line2.length, 45)) + "...";
+            if (line2.length > 40) {
+              line2 = line2.substring(0, 40) + "...";
+            } else {
+              line2 = line2 + "...";
+            }
           }
           doc.text(line2, ox + 25, oy + 51.5);
         }
