@@ -175,6 +175,42 @@
           <div class="scanner-viewport-wrapper" id="scanner-viewport">
             <video id="scanner-video" class="scanner-video" autoplay playsinline></video>
             <canvas id="scanner-canvas" class="scanner-canvas"></canvas>
+            
+            <!-- Adaptive OMR Engine HUD Overlay -->
+            <div id="adaptive-engine-hud" style="
+              position: absolute;
+              top: 10px;
+              left: 10px;
+              right: 10px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              z-index: 10;
+              pointer-events: none;
+            ">
+              <span id="hud-lighting-badge" style="
+                background: rgba(15, 23, 42, 0.75);
+                backdrop-filter: blur(4px);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                color: #e2e8f0;
+                font-size: 0.7rem;
+                font-weight: 600;
+                padding: 0.25rem 0.6rem;
+                border-radius: 999px;
+              ">☀️ Lighting: Auto</span>
+
+              <span id="hud-streak-badge" style="
+                background: rgba(15, 23, 42, 0.75);
+                backdrop-filter: blur(4px);
+                border: 1px solid rgba(16, 185, 129, 0.3);
+                color: #10b981;
+                font-size: 0.7rem;
+                font-weight: 700;
+                padding: 0.25rem 0.65rem;
+                border-radius: 999px;
+              ">⚡ Lock: Normal (0.6s)</span>
+            </div>
+
             <div class="scanner-overlay-grid">
               <div class="scanner-guide-box"></div>
             </div>

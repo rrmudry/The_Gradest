@@ -89,6 +89,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseDialog = document.getElementById('btn-close-dialog');
   const labelEditScore = document.getElementById('label-edit-score');
 
+  const hudLightingBadge = document.getElementById('hud-lighting-badge');
+  const hudStreakBadge = document.getElementById('hud-streak-badge');
+
   // Initialize Scanner Object
   const scanner = new BubbleScanner(scanVideo, scanCanvas, {
     sensitivity: state.sensitivity,
@@ -104,6 +107,37 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         scanStatusText.className = "badge badge-warning";
         scanViewport.classList.remove('aligned');
+      }
+
+      // Update Progressive Adaptive Engine HUD badges
+      if (scanner && scanner.adaptiveState && hudLightingBadge && hudStreakBadge) {
+        const { lightingMode, streakCount, rapidMode } = scanner.adaptiveState;
+        
+        hudLightingBadge.textContent = `☀️ Lighting: ${lightingMode}`;
+        if (lightingMode === 'Shadow Adaptive') {
+          hudLightingBadge.style.color = '#f59e0b';
+          hudLightingBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        } else if (lightingMode === 'High Exposure') {
+          hudLightingBadge.style.color = '#38bdf8';
+          hudLightingBadge.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+        } else {
+          hudLightingBadge.style.color = '#e2e8f0';
+          hudLightingBadge.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+        }
+
+        if (rapidMode) {
+          hudStreakBadge.textContent = `⚡ Rapid Lock (0.12s) • Streak x${streakCount}`;
+          hudStreakBadge.style.color = '#10b981';
+          hudStreakBadge.style.borderColor = 'rgba(16, 185, 129, 0.5)';
+        } else if (streakCount > 0) {
+          hudStreakBadge.textContent = `⚡ Fast Lock (0.27s) • Streak x${streakCount}`;
+          hudStreakBadge.style.color = '#38bdf8';
+          hudStreakBadge.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+        } else {
+          hudStreakBadge.textContent = `⚡ Lock: Normal (0.6s)`;
+          hudStreakBadge.style.color = '#94a3b8';
+          hudStreakBadge.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+        }
       }
     },
     onQRChange: (qrValue) => {
