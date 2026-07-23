@@ -46,6 +46,18 @@ class BubbleScanner {
     // Tracking state
     this.trackedAnchors = [null, null, null, null];
     
+    // Adaptive Evolutionary Scanner Engine State
+    this.scanStreak = 0;             // Consecutive rapid scans count
+    this.lastScanTime = 0;           // Timestamp of last scan
+    this.adaptiveState = {
+      lightingMode: 'balanced',      // 'balanced', 'dark_room', 'glare'
+      ambientLuminance: 128,
+      requiredStableFrames: 8,
+      lockoutDelay: 30,
+      streakCount: 0,
+      rapidMode: false
+    };
+
     // QR Code detection state (for mixed-stack assignment routing)
     this.lastDetectedQR = null;      // Last decoded QR string (assignment name)
     this.lastQRTimestamp = 0;        // performance.now() timestamp of last QR detection
@@ -290,11 +302,55 @@ class BubbleScanner {
     const p96Idx = Math.floor(samples.length * 0.96);
     const globalMin = samples[p2Idx];
     const globalMax = samples[p96Idx];
-    const dynThreshold = globalMin + (globalMax - globalMin) * 0.38;
+    
+    // Adaptive Lighting Engine: Auto-adjust binarization ratio for dark rooms vs glare
+    const avgLuminance = samples.reduce((sum, val) => sum + val, 0) / samples.length;
+    let threshRatio = 0.38;
+    let lightingMode = 'balanced';
+    if (avgLuminance < 85) {
+      threshRatio = 0.46; // Dark room boost: bring out faint anchor corners in low light
+      lightingMode = 'dark_room';
+    } else if (avgLuminance > 185) {
+      threshRatio = 0.32; // Glare filter: cut through glossy paper reflection under bright lights
+      lightingMode = 'glare';
+    }
+
+    const dynThreshold = globalMin + (globalMax - globalMin) * threshRatio;
+
+    // Scan Speed Evolution: Calculate hold frames and cooldown based on scan streak
+    const nowMs = performance.now();
+    if (this.lastScanTime > 0 && (nowMs - this.lastScanTime) > 6000) {
+      this.scanStreak = 0; // Reset streak if idle for > 6 seconds
+    }
+
+    let requiredFrames = 8;
+    let lockoutDelay = 30;
+
+    if (this.scanStreak >= 5) {
+      requiredFrames = 2; // Ultra-Burst mode (~0.06s lock)
+      lockoutDelay = 12;  // Fast cooldown (~0.3s)
+    } else if (this.scanStreak >= 2) {
+      requiredFrames = 4; // Rapid mode (~0.12s lock)
+      lockoutDelay = 20;  // Medium cooldown
+    }
+
+    this.adaptiveState = {
+      lightingMode,
+      ambientLuminance: Math.round(avgLuminance),
+      requiredStableFrames: requiredFrames,
+      lockoutFrames: lockoutDelay,
+      streakCount: this.scanStreak,
+      rapidMode: this.scanStreak >= 2
+    };
 
     this.lastDiagnostics.globalMin = Math.round(globalMin);
     this.lastDiagnostics.globalMax = Math.round(globalMax);
     this.lastDiagnostics.dynThreshold = Math.round(dynThreshold);
+    this.lastDiagnostics.adaptiveState = this.adaptiveState;
+
+    if (this.options.onAdaptiveChange) {
+      this.options.onAdaptiveChange(this.adaptiveState);
+    }
 
     // Helper: compute grayscale at (x, y)
     const getGray = (x, y) => {
@@ -751,9 +807,12 @@ class BubbleScanner {
 
       if (scanSuccess) {
         // Stabilize tracking
+        const reqFrames = this.adaptiveState.requiredStableFrames;
+        const coolDelay = this.adaptiveState.lockoutFrames;
+
         if (studentIdStr === this.lastScannedId && parsedScoreVal === this.lastScannedScore) {
           this.stableFrames++;
-          if (this.stableFrames >= 8) { // Stable for 8 frames (~0.25s) -> Trigger scan save!
+          if (this.stableFrames >= reqFrames) {
             // Check lockout here so we still process and display diagnostics, but ignore saving duplicates during cooldown
             if (this.scanLockout > 0) {
               if (this.options.onStatusChange) {
@@ -769,19 +828,23 @@ class BubbleScanner {
               this.options.onScanSuccess(studentIdStr, parsedScoreVal, this.lastDetectedQR);
             }
             
-            // Trigger lockout (e.g. 30 frames or 1.0 second of cool down to prevent double scanning)
-            this.scanLockout = 30;
+            // Evolve streak and set cooldown lockout
+            this.scanStreak++;
+            this.lastScanTime = performance.now();
+            this.scanLockout = coolDelay;
             this.stableFrames = 0;
             this.lastScannedId = "";
             this.lastScannedScore = -1;
             
+            const speedMsg = this.scanStreak >= 5 ? "⚡⚡ Ultra-Burst Saved! Next sheet" : this.scanStreak >= 2 ? "⚡ Rapid Scan Saved! Next sheet" : "Scan saved! Remove paper";
             if (this.options.onStatusChange) {
-              this.options.onStatusChange("Scan saved! Remove paper", true);
+              this.options.onStatusChange(speedMsg, true);
             }
             return;
           } else {
             if (this.options.onStatusChange) {
-              this.options.onStatusChange(`Holding steady (${Math.round(this.stableFrames / 18 * 100)}%)`, true);
+              const pct = Math.min(100, Math.round((this.stableFrames / reqFrames) * 100));
+              this.options.onStatusChange(`Holding steady (${pct}%)`, true);
             }
           }
         } else {
@@ -790,7 +853,8 @@ class BubbleScanner {
           this.lastScannedId = studentIdStr;
           this.lastScannedScore = parsedScoreVal;
           if (this.options.onStatusChange) {
-            this.options.onStatusChange("Valid sheet detected - Hold steady", true);
+            const modeMsg = this.adaptiveState.rapidMode ? `⚡ Rapid Lock (Hold ${reqFrames}f)` : "Valid sheet detected - Hold steady";
+            this.options.onStatusChange(modeMsg, true);
           }
         }
       } else {
