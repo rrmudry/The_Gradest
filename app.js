@@ -151,6 +151,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- TAB 1: SHEET GENERATOR PREVIEW & PDF ---
   
+  // SVG multi-line text wrapping helper
+  function wrapTextSVG(text, x, startY, lineHeight = 7.5, maxCharsPerLine = 48, maxLines = 2) {
+    if (!text) return '';
+    const words = text.split(/\s+/);
+    const lines = [];
+    let currentLine = "";
+
+    for (const word of words) {
+      if ((currentLine + " " + word).trim().length <= maxCharsPerLine) {
+        currentLine = (currentLine + " " + word).trim();
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+        if (lines.length >= maxLines - 1) break;
+      }
+    }
+    if (currentLine && lines.length < maxLines) {
+      lines.push(currentLine);
+    }
+
+    const totalWordsInLines = lines.join(" ").split(/\s+/).length;
+    if (totalWordsInLines < words.length && lines.length > 0) {
+      let last = lines[lines.length - 1];
+      if (last.length > maxCharsPerLine - 3) {
+        last = last.substring(0, maxCharsPerLine - 3);
+      }
+      lines[lines.length - 1] = last + "...";
+    }
+
+    return lines.map((line, idx) => 
+      `<tspan x="${x}" y="${startY + idx * lineHeight}">${escapeHTML(line)}</tspan>`
+    ).join('');
+  }
+
   // Real-time Preview Render (SVG)
   function renderLivePreview() {
     state.assignmentName = inputAssignName.value.trim() || "Quiz 1";
@@ -176,9 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <circle cx="235" cy="315" r="4.5" fill="black" />
 
       <!-- Assignment Info Header -->
-      <text x="25" y="36" font-family="'Outfit', sans-serif" font-size="10" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
-      <text x="25" y="48" font-family="'Outfit', sans-serif" font-size="6.2" fill="#475569">${escapeHTML(state.assignmentDetails)}</text>
-      <text x="25" y="60" font-family="'Outfit', sans-serif" font-size="7" font-weight="bold" fill="black">MAX SCORE: ${state.maxScore}</text>
+      <text x="25" y="34" font-family="'Outfit', sans-serif" font-size="9.5" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
+      <text font-family="'Outfit', sans-serif" font-size="5.8" fill="#475569">
+        ${wrapTextSVG(state.assignmentDetails, 25, 44, 7.5, 48, 2)}
+      </text>
+      <text x="25" y="62" font-family="'Outfit', sans-serif" font-size="6.8" font-weight="bold" fill="black">MAX SCORE: ${state.maxScore}</text>
 
       <!-- Student ID Label -->
       <text x="25" y="86" font-family="'Outfit', sans-serif" font-size="8" font-weight="bold" fill="black">STUDENT ID</text>
@@ -360,23 +396,32 @@ document.addEventListener('DOMContentLoaded', () => {
         // Draw Info Header
         doc.setTextColor(0, 0, 0);
         doc.setFont('Helvetica', 'Bold');
-        doc.setFontSize(10);
+        doc.setFontSize(9.5);
         const headerText = isTuning ? cardLabel : assignName.toUpperCase();
-        doc.text(headerText, ox + 25, oy + 36);
+        doc.text(headerText, ox + 25, oy + 34);
 
         doc.setFont('Helvetica', 'Normal');
-        doc.setFontSize(6.2);
+        doc.setFontSize(5.8);
         doc.setTextColor(71, 85, 105);
-        let detailsTruncated = isTuning ? "Use this card to evaluate webcam OMR thresholds and binarization." : assignDetails;
-        if (!isTuning && detailsTruncated.length > 55) {
-          detailsTruncated = detailsTruncated.substring(0, 52) + "...";
+        const rawDetails = isTuning ? "Use this card to evaluate webcam OMR thresholds and binarization." : assignDetails;
+        
+        // Wrap text to fit card width (up to 195pt)
+        const detailLines = doc.splitTextToSize(rawDetails, 195);
+        if (detailLines.length > 0) {
+          doc.text(detailLines[0], ox + 25, oy + 44);
         }
-        doc.text(detailsTruncated, ox + 25, oy + 48);
+        if (detailLines.length > 1) {
+          let line2 = detailLines[1];
+          if (detailLines.length > 2) {
+            line2 = line2.substring(0, Math.min(line2.length, 45)) + "...";
+          }
+          doc.text(line2, ox + 25, oy + 51.5);
+        }
 
         doc.setFont('Helvetica', 'Bold');
-        doc.setFontSize(7);
+        doc.setFontSize(6.8);
         doc.setTextColor(0, 0, 0);
-        doc.text(`MAX SCORE: ${maxScoreVal}`, ox + 25, oy + 60);
+        doc.text(`MAX SCORE: ${maxScoreVal}`, ox + 25, oy + 62);
 
         // Labels
         doc.text("STUDENT ID", ox + 25, oy + 86);
