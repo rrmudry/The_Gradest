@@ -39,8 +39,12 @@ The OMR engine operates at **30+ FPS** using pure client-side JavaScript:
 ### 1. Dynamic Thresholding
 Instead of a static threshold, the engine samples 1,000 pixels across the frame and calculates a dynamic threshold based on the **2nd and 96th percentiles** of brightness. This filters out harsh highlights (like ceiling bulbs) and deep shadows.
 
-### 2. Candidate Filtering
-A BFS-based flood fill extracts dark blobs. The candidate pool is pruned to keep the 12 smallest and 24 largest items. Combinations of 4 are selected and validated using aspect ratio, height/width symmetry, and a vector angle check ensuring corners are orthogonal ($90^\circ \pm 18^\circ$, or $|\cos(\theta)| < 0.31$).
+### 2. Candidate Filtering & QR Code Immunity
+A BFS-based flood fill extracts dark blobs across the camera frame. To ensure rock-solid tracking under high background noise and prevent false locks onto interior QR codes:
+* **Outer Ring Margin Isolation (`isIsolatedMarginFiducial`)**: Corner fiducials printed in page margins are surrounded by white paper. The engine samples a 12-point outer ring at $r = 1.5 \times \sqrt{\text{Area}}$. If a candidate is surrounded by dark QR modules, it is immediately discarded.
+* **Shape Solidity Filtering**: Candidates must satisfy $\text{Solidity} = \frac{\text{Area}}{\text{Width} \times \text{Height}} \ge 0.58$, prioritizing solid squares ($\approx 1.0$) and circles ($\approx 0.785$) over sparse QR text or module clusters.
+* **Enlarged 14pt Bottom Circles ($r = 7.0$)**: Bottom corner circular fiducials are printed at **14pt diameter** ($r = 7.0$), providing $2.5\times$ larger pixel area for instant long-distance camera tracking.
+* **Strict Height/Width Quad Symmetry**: Candidate quadruplets are validated against aspect ratio ($0.60 - 0.90$), side length symmetry ($\Delta H / H_{\max} < 0.15$), and orthogonal vector angles ($90^\circ \pm 18^\circ$).
 
 ### 3. Sub-Sampling Circle Search
 Once the quad is locked, the grid coordinates $(u, v)$ are warped back to screen coordinates. Rather than sampling a single center pixel, the engine collects pixels inside the inner radius:

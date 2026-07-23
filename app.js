@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Real-time Preview Render (SVG)
   function renderLivePreview() {
-    state.assignmentName = inputAssignName.value.trim() || "Quiz 1";
+    state.assignmentName = inputAssignName.value.trim();
     state.assignmentDetails = inputAssignDetails.value.trim() || "";
     state.maxScore = parseInt(inputMaxScore.value) || 100;
     scanner.setMaxScore(state.maxScore);
@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <circle cx="235" cy="315" r="7.0" fill="black" />
 
       <!-- Assignment Info Header -->
-      <text x="25" y="31" font-family="Helvetica, Arial, sans-serif" font-size="9.0" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
+      <text x="25" y="31" font-family="Helvetica, Arial, sans-serif" font-size="9.0" font-weight="bold" fill="black">${escapeHTML(state.assignmentName || "UNTITLED ASSIGNMENT")}</text>
       <text x="225" y="31" font-family="Helvetica, Arial, sans-serif" font-size="7.2" font-weight="bold" fill="black" text-anchor="end">MAX SCORE: ${state.maxScore}</text>
       <text font-family="Helvetica, Arial, sans-serif" font-size="5.2" fill="#475569">
         ${renderSVGDetails(state.assignmentDetails, 25, 39, 7.0, 6)}
