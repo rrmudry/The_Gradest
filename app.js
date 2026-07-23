@@ -160,18 +160,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.jspdf && window.jspdf.jsPDF) {
         const doc = new window.jspdf.jsPDF({ unit: 'pt', format: [250, 330] });
         doc.setFont('Helvetica', 'Normal');
-        doc.setFontSize(5.8);
+        doc.setFontSize(5.2);
         return doc.splitTextToSize(text, maxWidthPt);
       }
     } catch (e) {
       console.warn("jsPDF text wrap fallback:", e);
     }
 
-    // Calibrated character-limit fallback (~50 chars for 190pt width at 5.8pt font)
+    // Calibrated character-limit fallback (~54 chars for 190pt width at 5.2pt font)
     const words = text.split(/\s+/);
     const lines = [];
     let currentLine = "";
-    const maxChars = 50;
+    const maxChars = 54;
 
     for (const word of words) {
       const testLine = currentLine ? currentLine + " " + word : word;
@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return lines;
   }
 
-  function renderSVGDetails(text, x, startY, lineHeight = 7.5, maxLines = 6) {
+  function renderSVGDetails(text, x, startY = 39, lineHeight = 7.0, maxLines = 6) {
     const lines = getWrappedTextLines(text, 190);
     if (lines.length === 0) return '';
     
@@ -194,8 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lines.length > maxLines) {
       displayLines = lines.slice(0, maxLines);
       let last = displayLines[maxLines - 1];
-      if (last.length > 44) {
-        last = last.substring(0, 44) + '...';
+      if (last.length > 46) {
+        last = last.substring(0, 46) + '...';
       } else {
         last = last + '...';
       }
@@ -232,17 +232,17 @@ document.addEventListener('DOMContentLoaded', () => {
       <circle cx="235" cy="315" r="4.5" fill="black" />
 
       <!-- Assignment Info Header -->
-      <text x="25" y="34" font-family="Helvetica, Arial, sans-serif" font-size="9.5" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
-      <text x="225" y="34" font-family="Helvetica, Arial, sans-serif" font-size="7.5" font-weight="bold" fill="black" text-anchor="end">MAX SCORE: ${state.maxScore}</text>
-      <text font-family="Helvetica, Arial, sans-serif" font-size="5.8" fill="#475569">
-        ${renderSVGDetails(state.assignmentDetails, 25, 44, 7.5, 6)}
+      <text x="25" y="31" font-family="Helvetica, Arial, sans-serif" font-size="9.0" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
+      <text x="225" y="31" font-family="Helvetica, Arial, sans-serif" font-size="7.2" font-weight="bold" fill="black" text-anchor="end">MAX SCORE: ${state.maxScore}</text>
+      <text font-family="Helvetica, Arial, sans-serif" font-size="5.2" fill="#475569">
+        ${renderSVGDetails(state.assignmentDetails, 25, 39, 7.0, 6)}
       </text>
 
       <!-- Student ID Label -->
-      <text x="25" y="86" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="bold" fill="black">STUDENT ID</text>
+      <text x="25" y="85" font-family="Helvetica, Arial, sans-serif" font-size="7.5" font-weight="bold" fill="black">STUDENT ID</text>
       
       <!-- Score Label -->
-      <text x="135" y="86" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="bold" fill="black">SCORE</text>
+      <text x="135" y="85" font-family="Helvetica, Arial, sans-serif" font-size="7.5" font-weight="bold" fill="black">SCORE</text>
     `;
 
     // Student ID Boxes & Grid (6 columns)
@@ -418,17 +418,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Draw Info Header
         doc.setTextColor(0, 0, 0);
         doc.setFont('Helvetica', 'Bold');
-        doc.setFontSize(9.5);
+        doc.setFontSize(9.0);
         const headerText = isTuning ? cardLabel : assignName.toUpperCase();
-        doc.text(headerText, ox + 25, oy + 34);
+        doc.text(headerText, ox + 25, oy + 31);
 
         // Max Score header on top right
-        doc.setFontSize(7.5);
-        doc.text(`MAX SCORE: ${maxScoreVal}`, ox + 225, oy + 34, { align: 'right' });
+        doc.setFontSize(7.2);
+        doc.text(`MAX SCORE: ${maxScoreVal}`, ox + 225, oy + 31, { align: 'right' });
 
         // Description & Details (Up to 6 lines)
         doc.setFont('Helvetica', 'Normal');
-        doc.setFontSize(5.8);
+        doc.setFontSize(5.2);
         doc.setTextColor(71, 85, 105);
         const rawDetails = isTuning ? "Use this card to evaluate webcam OMR thresholds and binarization." : assignDetails;
         
@@ -437,8 +437,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const displayLines = detailLines.slice(0, maxLines);
         if (detailLines.length > maxLines) {
           let last = displayLines[maxLines - 1];
-          if (last.length > 44) {
-            last = last.substring(0, 44) + "...";
+          if (last.length > 46) {
+            last = last.substring(0, 46) + "...";
           } else {
             last = last + "...";
           }
@@ -446,15 +446,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         displayLines.forEach((line, idx) => {
-          doc.text(line, ox + 25, oy + 44 + idx * 7.5);
+          doc.text(line, ox + 25, oy + 39 + idx * 7.0);
         });
 
         // Labels
         doc.setFont('Helvetica', 'Bold');
-        doc.setFontSize(8);
+        doc.setFontSize(7.5);
         doc.setTextColor(0, 0, 0);
-        doc.text("STUDENT ID", ox + 25, oy + 86);
-        doc.text("SCORE", ox + 135, oy + 86);
+        doc.text("STUDENT ID", ox + 25, oy + 85);
+        doc.text("SCORE", ox + 135, oy + 85);
 
         // Draw Student ID grid (6 columns)
         doc.setLineWidth(0.75);
