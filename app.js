@@ -1225,13 +1225,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const btnCreateNewAssignment = document.getElementById('btn-create-new-assignment');
+
   function updateAssignmentsDropdown() {
     const list = getStoredAssignments();
     const names = Object.keys(list);
     
     // Build the options HTML (reused for both dropdowns)
-    const noOptionHtml = '<option value="">-- Start New Assignment --</option>';
-    const noOptionGradesHtml = '<option value="">-- Select an Assignment --</option>';
+    const noOptionHtml = '<option value="">-- Select Saved Assignment --</option>';
+    const noOptionGradesHtml = '<option value="">-- Select Saved Assignment --</option>';
     const optionsHtml = names.map(n =>
       `<option value="${n}">${n}</option>`
     ).join('');
@@ -1255,6 +1257,33 @@ document.addEventListener('DOMContentLoaded', () => {
       gradesAssignmentBadge.style.background = 'rgba(148,163,184,0.1)';
       gradesAssignmentBadge.style.color = 'var(--text-secondary)';
     }
+  }
+
+  function createNewAssignment() {
+    state.assignmentName = "";
+    state.assignmentDetails = "";
+    state.maxScore = 100;
+    state.grades = [];
+    state.roster.clear();
+    state.sensitivity = 22;
+    state.savedAssignmentName = null;
+    localStorage.removeItem('the_gradest_active_assignment_name');
+
+    inputAssignName.value = "";
+    inputAssignDetails.value = "";
+    inputMaxScore.value = 100;
+    inputSensitivity.value = 22;
+    scanner.setMaxScore(100);
+    scanner.setSensitivity(22);
+
+    renderLivePreview();
+    renderGradesTable();
+    updateStatsDashboard();
+    renderRecentScansList();
+    updateAssignmentsDropdown();
+
+    inputAssignName.focus();
+    showToast("New Assignment Created", "Settings cleared. Enter your new assignment details.", "info");
   }
 
   function saveCurrentAssignment(silent = false) {
@@ -1294,29 +1323,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function loadAssignment(name) {
     if (!name) {
-      state.assignmentName = "Quiz 1";
-      state.assignmentDetails = "Chapter 1-3 Review. Fill in bubbles completely.";
-      state.maxScore = 100;
-      state.grades = [];
-      state.roster.clear();
-      state.sensitivity = 22;
-      state.savedAssignmentName = null;
-      localStorage.removeItem('the_gradest_active_assignment_name');
-    } else {
-      const assignments = getStoredAssignments();
-      const data = assignments[name];
-      if (!data) return;
-
-      state.assignmentName = data.assignmentName || name;
-      state.assignmentDetails = data.assignmentDetails || "";
-      state.maxScore = data.maxScore || 100;
-      state.grades = data.grades || [];
-      state.roster = new Map(data.roster || []);
-      state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
-      state.savedAssignmentName = name;
-      
-      localStorage.setItem('the_gradest_active_assignment_name', name);
+      createNewAssignment();
+      return;
     }
+
+    const assignments = getStoredAssignments();
+    const data = assignments[name];
+    if (!data) return;
+
+    state.assignmentName = data.assignmentName || name;
+    state.assignmentDetails = data.assignmentDetails || "";
+    state.maxScore = data.maxScore || 100;
+    state.grades = data.grades || [];
+    state.roster = new Map(data.roster || []);
+    state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
+    state.savedAssignmentName = name;
+    
+    localStorage.setItem('the_gradest_active_assignment_name', name);
 
     inputAssignName.value = state.assignmentName;
     inputAssignDetails.value = state.assignmentDetails;
@@ -1345,7 +1368,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeName = localStorage.getItem('the_gradest_active_assignment_name');
     if (activeName === name) {
       localStorage.removeItem('the_gradest_active_assignment_name');
-      loadAssignment("");
+      createNewAssignment();
     } else {
       updateAssignmentsDropdown();
     }
@@ -1411,6 +1434,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Bind Event Listeners for Save/Load panel
+  if (btnCreateNewAssignment) {
+    btnCreateNewAssignment.addEventListener('click', createNewAssignment);
+  }
   selectAssignments.addEventListener('change', (e) => loadAssignment(e.target.value));
   gradesSelectAssignments.addEventListener('change', (e) => loadAssignment(e.target.value));
   btnDeleteAssignment.addEventListener('click', () => deleteAssignment(selectAssignments.value));
