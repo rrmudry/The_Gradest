@@ -830,7 +830,6 @@ class BubbleScanner {
         if (this.options.onStatusChange) {
           this.options.onStatusChange(errorMsg, true);
         }
-      }
 
       // Display live numbers on top in a floating style
       this.ctx.font = "bold 16px 'Outfit', sans-serif";
