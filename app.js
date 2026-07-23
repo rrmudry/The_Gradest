@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     assignmentDetails: "Chapter 1-3 Review. Fill in bubbles completely.",
     maxScore: 100,
     grades: [], // Array of { id, score, name, percentage, status, timestamp }
-    roster: new Map(), // studentId (string) -> studentName (string)
+    roster: new Map(), // studentId (string) -> studentName (string) (Assignment specific)
+    globalRoster: new Map(), // Global Firestore roster map
     activeTab: 'generate',
     selectedCameraId: null,
     sensitivity: 22,
@@ -788,19 +789,33 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-  // Smart Roster Matching Helper: Handles leading zero padding differences (e.g. 012345 vs 12345)
+  // Smart Roster Matching Helper: Handles leading zero padding and queries both local & global Firestore roster
   function lookupRosterName(studentId) {
-    if (!studentId || state.roster.size === 0) return "Not in roster";
+    if (!studentId) return "Not in roster";
     
-    // Direct match
-    if (state.roster.has(studentId)) return state.roster.get(studentId);
+    // 1. Check local assignment-specific roster map
+    if (state.roster && state.roster.has(studentId)) return state.roster.get(studentId);
     
-    // Clean numeric comparison (ignoring leading zeros)
     const cleanId = studentId.replace(/^0+/, '');
-    for (let [rId, name] of state.roster.entries()) {
-      const cleanRId = rId.replace(/^0+/, '');
-      if (cleanRId === cleanId && cleanId.length > 0) {
-        return name;
+    if (state.roster) {
+      for (let [rId, name] of state.roster.entries()) {
+        const cleanRId = rId.replace(/^0+/, '');
+        if (cleanRId === cleanId && cleanId.length > 0) {
+          return name;
+        }
+      }
+    }
+
+    // 2. Check global Firestore roster collection
+    if (state.globalRoster) {
+      if (state.globalRoster.has(studentId)) return state.globalRoster.get(studentId);
+      if (state.globalRoster.has(cleanId)) return state.globalRoster.get(cleanId);
+
+      for (let [rId, name] of state.globalRoster.entries()) {
+        const cleanRId = rId.replace(/^0+/, '');
+        if (cleanRId === cleanId && cleanId.length > 0) {
+          return name;
+        }
       }
     }
     
@@ -1427,6 +1442,44 @@ document.addEventListener('DOMContentLoaded', () => {
         }, (err) => {
           console.error("Firestore real-time sync error:", err);
         });
+
+      // Listen to real-time updates from global Firestore 'roster' collection
+      firestoreDb.collection('roster').onSnapshot((rosterSnap) => {
+        state.globalRoster.clear();
+        rosterSnap.forEach(doc => {
+          const data = doc.data();
+          const sId = doc.id || data.student_id;
+          const sName = data.name || data.student_name || (data.first_name ? `${data.first_name} ${data.last_name}` : null);
+          if (sId && sName) {
+            let cleanId = String(sId).trim();
+            if (cleanId.length > 0 && cleanId.length < 6 && !isNaN(parseInt(cleanId))) {
+              cleanId = cleanId.padStart(6, '0');
+            }
+            state.globalRoster.set(cleanId, sName);
+            state.globalRoster.set(cleanId.replace(/^0+/, ''), sName);
+          }
+        });
+
+        // Automatically update any existing scanned records currently marked "No Roster Match"
+        let remapped = false;
+        state.grades.forEach(g => {
+          const matchName = lookupRosterName(g.id);
+          if (matchName !== "Not in roster" && g.name !== matchName) {
+            g.name = matchName;
+            if (g.status === "No Roster Match") g.status = "Valid";
+            remapped = true;
+          }
+        });
+
+        if (remapped) {
+          renderGradesTable();
+          updateStatsDashboard();
+          renderRecentScansList();
+          saveCurrentAssignment(true);
+        }
+      }, (err) => {
+        console.error("Firestore roster collection error:", err);
+      });
     } catch (e) {
       console.error("Firestore initialization error:", e);
     }
