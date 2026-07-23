@@ -757,38 +757,6 @@ document.addEventListener('DOMContentLoaded', () => {
     scanOutPercentage.textContent = "--%";
   }
 
-  // Scan detection callback
-  function handleSuccessfulScan(studentId, score, detectedAssignmentName = null) {
-    // --- QR-based Assignment Auto-Routing ---
-    if (detectedAssignmentName) {
-      const assignments = getStoredAssignments();
-      const target = detectedAssignmentName.trim();
-
-      if (target !== state.savedAssignmentName) {
-        if (assignments[target]) {
-          // Auto-switch to the known assignment silently
-          const data = assignments[target];
-          state.assignmentName = data.assignmentName || target;
-          state.assignmentDetails = data.assignmentDetails || '';
-          state.maxScore = data.maxScore || 100;
-          state.grades = data.grades || [];
-          state.roster = new Map(data.roster || []);
-          state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
-          state.savedAssignmentName = target;
-          localStorage.setItem('the_gradest_active_assignment_name', target);
-          scanner.setMaxScore(state.maxScore);
-          inputAssignName.value = state.assignmentName;
-          inputAssignDetails.value = state.assignmentDetails;
-          inputMaxScore.value = state.maxScore;
-          updateAssignmentsDropdown();
-          showToast('Assignment Switched', `Routing grades to "${target}"`, 'info');
-        } else {
-          // Unknown assignment — warn but continue saving to current
-          showToast('Unknown Assignment QR', `Sheet QR says "${target}" but that assignment is not saved. Grade saved to current assignment.`, 'warning');
-        }
-      }
-    }
-
   // Smart Roster Matching Helper: Handles leading zero padding and queries both local & global Firestore roster
   function lookupRosterName(studentId) {
     if (!studentId) return "Not in roster";
@@ -822,7 +790,39 @@ document.addEventListener('DOMContentLoaded', () => {
     return "Not in roster";
   }
 
-  state.assignmentName = inputAssignName.value.trim() || 'Quiz 1';
+  // Scan detection callback
+  function handleSuccessfulScan(studentId, score, detectedAssignmentName = null) {
+    // --- QR-based Assignment Auto-Routing ---
+    if (detectedAssignmentName) {
+      const assignments = getStoredAssignments();
+      const target = detectedAssignmentName.trim();
+
+      if (target !== state.savedAssignmentName) {
+        if (assignments[target]) {
+          // Auto-switch to the known assignment silently
+          const data = assignments[target];
+          state.assignmentName = data.assignmentName || target;
+          state.assignmentDetails = data.assignmentDetails || '';
+          state.maxScore = data.maxScore || 100;
+          state.grades = data.grades || [];
+          state.roster = new Map(data.roster || []);
+          state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
+          state.savedAssignmentName = target;
+          localStorage.setItem('the_gradest_active_assignment_name', target);
+          scanner.setMaxScore(state.maxScore);
+          inputAssignName.value = state.assignmentName;
+          inputAssignDetails.value = state.assignmentDetails;
+          inputMaxScore.value = state.maxScore;
+          updateAssignmentsDropdown();
+          showToast('Assignment Switched', `Routing grades to "${target}"`, 'info');
+        } else {
+          // Unknown assignment — warn but continue saving to current
+          showToast('Unknown Assignment QR', `Sheet QR says "${target}" but that assignment is not saved. Grade saved to current assignment.`, 'warning');
+        }
+      }
+    }
+
+    state.assignmentName = inputAssignName.value.trim() || 'Quiz 1';
     
     // Set UI Fields
     scanOutAssignment.textContent = state.assignmentName;
