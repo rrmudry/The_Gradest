@@ -1027,13 +1027,30 @@ document.addEventListener('DOMContentLoaded', () => {
     
     editOriginalIndex.value = index;
     editStudentId.value = entry.id;
-    editStudentName.value = entry.name;
+    
+    // Live roster check when opening edit dialog
+    const rosterMatch = lookupRosterName(entry.id);
+    editStudentName.value = (rosterMatch !== "Not in roster") ? rosterMatch : (entry.name || "Not in roster");
+    
     editScore.value = entry.score;
     editScore.max = state.maxScore;
     
     labelEditScore.textContent = `Score (0 - ${state.maxScore})`;
     
     dialogEditGrade.classList.add('open');
+  }
+
+  // Auto-check roster as the teacher types a Student ID in the edit modal
+  if (editStudentId) {
+    editStudentId.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      if (val.length >= 4) {
+        const match = lookupRosterName(val);
+        if (match !== "Not in roster") {
+          editStudentName.value = match;
+        }
+      }
+    });
   }
 
   function closeEditDialog() {
@@ -1048,6 +1065,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const index = parseInt(editOriginalIndex.value);
     const id = editStudentId.value.trim();
+    const inputName = editStudentName.value.trim();
     const scoreVal = parseInt(editScore.value);
     
     if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > state.maxScore) {
@@ -1055,25 +1073,33 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (id.length !== 6 || isNaN(parseInt(id))) {
-      alert("Student ID must be a 6 digit number.");
+    if (id.length < 4 || isNaN(parseInt(id))) {
+      alert("Student ID must be a valid numeric student number.");
       return;
     }
 
-    // Remap name from roster
-    const name = state.roster.get(id) || "Not in roster";
+    // Remap name from roster (checks both assignment roster & global Firestore roster)
+    const rosterNameMatch = lookupRosterName(id);
+    let finalName = inputName;
+
+    if (rosterNameMatch !== "Not in roster") {
+      finalName = rosterNameMatch;
+    } else if (!finalName || finalName === "Not in roster") {
+      finalName = "Not in roster";
+    }
+
     const percentage = Math.round((scoreVal / state.maxScore) * 100);
 
     state.grades[index] = {
       id: id,
       score: scoreVal,
-      name: name,
+      name: finalName,
       percentage: percentage,
-      status: "Manually Edited",
+      status: finalName !== "Not in roster" ? "Valid" : "Manually Edited",
       timestamp: new Date().toLocaleTimeString()
     };
 
-    showToast("Grade Updated", `Modified entry for ID ${id}.`, "success");
+    showToast("Grade Updated", `Modified entry for ID ${id} (${finalName}).`, "success");
     closeEditDialog();
     renderGradesTable();
     updateStatsDashboard();
