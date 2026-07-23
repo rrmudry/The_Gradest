@@ -225,11 +225,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <!-- Dashed border representing cut line -->
       <rect x="1" y="1" width="248" height="328" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,4" />
       
-      <!-- 4 Anchors (Asymmetric Scantron-style: Top are large squares, Bottom are small circles) -->
+      <!-- 4 Anchors (Asymmetric Scantron-style: Top are large squares, Bottom are bold circles) -->
       <rect x="7" y="7" width="16" height="16" fill="black" />
       <rect x="227" y="7" width="16" height="16" fill="black" />
-      <circle cx="15" cy="315" r="4.5" fill="black" />
-      <circle cx="235" cy="315" r="4.5" fill="black" />
+      <circle cx="15" cy="315" r="7.0" fill="black" />
+      <circle cx="235" cy="315" r="7.0" fill="black" />
 
       <!-- Assignment Info Header -->
       <text x="25" y="31" font-family="Helvetica, Arial, sans-serif" font-size="9.0" font-weight="bold" fill="black">${escapeHTML(state.assignmentName)}</text>
@@ -383,12 +383,12 @@ document.addEventListener('DOMContentLoaded', () => {
         doc.rect(ox, oy, cardW, cardH);
         doc.setLineDashPattern([], 0); // reset to solid
 
-        // Draw 4 corner anchors (Asymmetric Scantron-style: Top are large squares, Bottom are small circles)
+        // Draw 4 corner anchors (Asymmetric Scantron-style: Top are large squares, Bottom are bold circles)
         doc.setFillColor(0, 0, 0);
         doc.rect(ox + 7, oy + 7, 16, 16, 'F');
         doc.rect(ox + 227, oy + 7, 16, 16, 'F');
-        doc.circle(ox + 15, oy + 315, 4.5, 'F');
-        doc.circle(ox + 235, oy + 315, 4.5, 'F');
+        doc.circle(ox + 15, oy + 315, 7.0, 'F');
+        doc.circle(ox + 235, oy + 315, 7.0, 'F');
 
         // Setup tuning data
         let targetId = [];

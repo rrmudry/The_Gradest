@@ -994,6 +994,32 @@ class BubbleScanner {
     };
   }
 
+  // Margin Isolation Check: Verify that a candidate blob is surrounded by clean white paper,
+  // rejecting QR code finder patterns and internal sheet markings that are surrounded by dark clutter.
+  isIsolatedMarginFiducial(cX, cY, area, pixels, threshold) {
+    const r = Math.max(10, Math.round(Math.sqrt(area) * 1.5));
+    let darkNeighborCount = 0;
+    const numSamples = 12;
+
+    for (let i = 0; i < numSamples; i++) {
+      const angle = (i * 2 * Math.PI) / numSamples;
+      const px = Math.round(cX + Math.cos(angle) * r);
+      const py = Math.round(cY + Math.sin(angle) * r);
+
+      if (px >= 0 && px < this.width && py >= 0 && py < this.height) {
+        const pIdx = (py * this.width + px) * 4;
+        const gray = 0.299 * pixels[pIdx] + 0.587 * pixels[pIdx + 1] + 0.114 * pixels[pIdx + 2];
+        if (gray < threshold) {
+          darkNeighborCount++;
+        }
+      }
+    }
+
+    // A true corner fiducial in the margin should be surrounded by white paper (<= 2 dark neighbors).
+    // QR code finder patterns are surrounded by dark QR modules (darkNeighborCount >= 4).
+    return darkNeighborCount <= 2;
+  }
+
   // Scan the frame globally to locate candidates for anchors and sort them into corners
   findGlobalAnchors(pixels, threshold) {
     const candidates = [];
@@ -1011,7 +1037,6 @@ class BubbleScanner {
 
         if (gray < threshold) {
           const blob = this.floodFill(x, y, pixels, visited, threshold);
-          // Allow smaller blob sizes (>= 4 pixels) to capture small bottom dots far away
           if (blob && blob.count >= 4 && blob.count <= 600) {
             const aspect = blob.w / blob.h;
             const solidity = blob.count / (blob.w * blob.h);
@@ -1019,12 +1044,15 @@ class BubbleScanner {
             // Fiducials are solid squares (solidity ≈ 0.85-1.0) or solid circles (solidity ≈ 0.785).
             // QR code modules, text, and background clutter have low solidity (< 0.55) or skewed aspect ratios.
             if (aspect >= 0.60 && aspect <= 1.65 && solidity >= 0.58) {
-              candidates.push({
-                x: blob.cX,
-                y: blob.cY,
-                area: blob.count,
-                solidity: solidity
-              });
+              // Verify blob is an isolated corner fiducial in the white margin, NOT inside QR code clutter
+              if (this.isIsolatedMarginFiducial(blob.cX, blob.cY, blob.count, pixels, threshold)) {
+                candidates.push({
+                  x: blob.cX,
+                  y: blob.cY,
+                  area: blob.count,
+                  solidity: solidity
+                });
+              }
             }
           }
         }
