@@ -1512,7 +1512,17 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function syncAssignmentToFirestore(name) {
-    if (!firestoreDb || !currentUserEmail || !name) return;
+    if (!name) return;
+    if (!firestoreDb && window.firebase && firebase.firestore) {
+      try { firestoreDb = firebase.firestore(); } catch (e) {}
+    }
+    if (!firestoreDb) return;
+
+    let email = currentUserEmail;
+    if (!email && window.firebase && firebase.auth && firebase.auth().currentUser) {
+      email = firebase.auth().currentUser.email;
+    }
+
     const assignments = getStoredAssignments();
     const data = assignments[name];
     if (!data) return;
@@ -1524,19 +1534,24 @@ document.addEventListener('DOMContentLoaded', () => {
       grades: data.grades || [],
       roster: data.roster || [],
       sensitivity: data.sensitivity,
-      userEmail: currentUserEmail,
+      userEmail: (email || 'teacher').toLowerCase(),
       isProctorAssessment: false,
       sourceType: 'the_gradest',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    firestoreDb.collection('gradest_assignments').doc(name).set(payload, { merge: true }).catch(err => {
+    firestoreDb.collection('gradest_assignments').doc(name).set(payload, { merge: true }).then(() => {
+      console.log(`Successfully synced assignment "${name}" grades to Cloud Firestore.`);
+    }).catch(err => {
       console.error("Firestore write failed:", err);
     });
   }
 
   function deleteAssignmentFromFirestore(name, oldName) {
-    if (!firestoreDb || !currentUserEmail) return;
+    if (!firestoreDb && window.firebase && firebase.firestore) {
+      try { firestoreDb = firebase.firestore(); } catch (e) {}
+    }
+    if (!firestoreDb) return;
     if (oldName && oldName !== name) {
       firestoreDb.collection('gradest_assignments').doc(oldName).delete().catch(err => console.error("Firestore delete old doc failed:", err));
     }
