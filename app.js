@@ -151,20 +151,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- TAB 1: SHEET GENERATOR PREVIEW & PDF ---
   
-  // Canvas-based text measurement for 100% identical SVG & PDF word wrapping
-  const measureCanvas = document.createElement('canvas').getContext('2d');
-
-  function getWrappedTextLines(text, maxWidthPt = 195) {
+  // Precise multi-line text wrapping helper powered by jsPDF font metrics
+  function getWrappedTextLines(text, maxWidthPt = 190) {
     if (!text) return [];
-    measureCanvas.font = "5.8px Helvetica, Arial, sans-serif";
+    
+    // Use jsPDF's exact font metrics engine if available
+    try {
+      if (window.jspdf && window.jspdf.jsPDF) {
+        const doc = new window.jspdf.jsPDF({ unit: 'pt', format: [250, 330] });
+        doc.setFont('Helvetica', 'Normal');
+        doc.setFontSize(5.8);
+        return doc.splitTextToSize(text, maxWidthPt);
+      }
+    } catch (e) {
+      console.warn("jsPDF text wrap fallback:", e);
+    }
+
+    // Calibrated character-limit fallback (~50 chars for 190pt width at 5.8pt font)
     const words = text.split(/\s+/);
     const lines = [];
     let currentLine = "";
+    const maxChars = 50;
 
     for (const word of words) {
       const testLine = currentLine ? currentLine + " " + word : word;
-      const width = measureCanvas.measureText(testLine).width;
-      if (width <= maxWidthPt) {
+      if (testLine.length <= maxChars) {
         currentLine = testLine;
       } else {
         if (currentLine) lines.push(currentLine);
@@ -176,15 +187,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderSVGDetails(text, x, startY, lineHeight = 7.5, maxLines = 2) {
-    const lines = getWrappedTextLines(text, 195);
+    const lines = getWrappedTextLines(text, 190);
     if (lines.length === 0) return '';
     
     let displayLines = lines;
     if (lines.length > maxLines) {
       displayLines = lines.slice(0, maxLines);
       let last = displayLines[maxLines - 1];
-      if (last.length > 40) {
-        last = last.substring(0, 40) + '...';
+      if (last.length > 44) {
+        last = last.substring(0, 44) + '...';
       } else {
         last = last + '...';
       }
