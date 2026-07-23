@@ -1014,12 +1014,16 @@ class BubbleScanner {
           // Allow smaller blob sizes (>= 4 pixels) to capture small bottom dots far away
           if (blob && blob.count >= 4 && blob.count <= 600) {
             const aspect = blob.w / blob.h;
-            // Tolerant aspect ratio range for tiny pixelated blobs
-            if (aspect >= 0.45 && aspect <= 2.2) {
+            const solidity = blob.count / (blob.w * blob.h);
+            
+            // Fiducials are solid squares (solidity ≈ 0.85-1.0) or solid circles (solidity ≈ 0.785).
+            // QR code modules, text, and background clutter have low solidity (< 0.55) or skewed aspect ratios.
+            if (aspect >= 0.60 && aspect <= 1.65 && solidity >= 0.58) {
               candidates.push({
                 x: blob.cX,
                 y: blob.cY,
-                area: blob.count
+                area: blob.count,
+                solidity: solidity
               });
             }
           }
@@ -1030,21 +1034,10 @@ class BubbleScanner {
     if (candidates.length < 4) return null;
 
     // Limit candidate count to avoid combinatorial explosion under high noise.
-    // We keep the 8 smallest and 8 largest candidates to ensure we preserve both the 
-    // small bottom dots and the large top squares.
-    // Limit candidate count to avoid combinatorial explosion under high noise.
-    // We keep the 12 smallest and 24 largest candidates to ensure we preserve both the 
-    // small bottom dots and the large top squares even when background clutter exists.
-    if (candidates.length > 32) {
-      candidates.sort((a, b) => a.area - b.area);
-      const smallPruned = candidates.slice(0, 12);
-      const largePruned = candidates.slice(-24);
-      
-      candidates.length = 0;
-      const uniqueSet = new Set();
-      smallPruned.forEach(c => uniqueSet.add(c));
-      largePruned.forEach(c => uniqueSet.add(c));
-      uniqueSet.forEach(c => candidates.push(c));
+    // We prioritize candidates with high solidity (solid squares & circles) to filter out QR noise.
+    if (candidates.length > 28) {
+      candidates.sort((a, b) => b.solidity - a.solidity);
+      candidates.length = 28;
     }
 
     if (this.lastDiagnostics) {
@@ -1218,6 +1211,13 @@ class BubbleScanner {
 
     const bl = projS1 < projS2 ? S1 : S2;
     const br = projS1 < projS2 ? S2 : S1;
+
+    // Verify that BR was not mistakenly picked inside the QR code or background clutter
+    const hLeft = dist(tl, bl);
+    const hRight = dist(tr, br);
+    if (Math.abs(hLeft - hRight) / Math.max(hLeft, hRight) > 0.28) {
+      return null; // Reject: BR is inside QR code or distorted!
+    }
 
     return [tl, tr, bl, br];
   }
