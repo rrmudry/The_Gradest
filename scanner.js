@@ -303,54 +303,11 @@ class BubbleScanner {
     const globalMin = samples[p2Idx];
     const globalMax = samples[p96Idx];
     
-    // Adaptive Lighting Engine: Auto-adjust binarization ratio for dark rooms vs glare
-    const avgLuminance = samples.reduce((sum, val) => sum + val, 0) / samples.length;
-    let threshRatio = 0.38;
-    let lightingMode = 'balanced';
-    if (avgLuminance < 85) {
-      threshRatio = 0.46; // Dark room boost: bring out faint anchor corners in low light
-      lightingMode = 'dark_room';
-    } else if (avgLuminance > 185) {
-      threshRatio = 0.32; // Glare filter: cut through glossy paper reflection under bright lights
-      lightingMode = 'glare';
-    }
-
-    const dynThreshold = globalMin + (globalMax - globalMin) * threshRatio;
-
-    // Scan Speed Evolution: Calculate hold frames and cooldown based on scan streak
-    const nowMs = performance.now();
-    if (this.lastScanTime > 0 && (nowMs - this.lastScanTime) > 6000) {
-      this.scanStreak = 0; // Reset streak if idle for > 6 seconds
-    }
-
-    let requiredFrames = 8;
-    let lockoutDelay = 30;
-
-    if (this.scanStreak >= 5) {
-      requiredFrames = 2; // Ultra-Burst mode (~0.06s lock)
-      lockoutDelay = 12;  // Fast cooldown (~0.3s)
-    } else if (this.scanStreak >= 2) {
-      requiredFrames = 4; // Rapid mode (~0.12s lock)
-      lockoutDelay = 20;  // Medium cooldown
-    }
-
-    this.adaptiveState = {
-      lightingMode,
-      ambientLuminance: Math.round(avgLuminance),
-      requiredStableFrames: requiredFrames,
-      lockoutFrames: lockoutDelay,
-      streakCount: this.scanStreak,
-      rapidMode: this.scanStreak >= 2
-    };
+    const dynThreshold = globalMin + (globalMax - globalMin) * 0.38;
 
     this.lastDiagnostics.globalMin = Math.round(globalMin);
     this.lastDiagnostics.globalMax = Math.round(globalMax);
     this.lastDiagnostics.dynThreshold = Math.round(dynThreshold);
-    this.lastDiagnostics.adaptiveState = this.adaptiveState;
-
-    if (this.options.onAdaptiveChange) {
-      this.options.onAdaptiveChange(this.adaptiveState);
-    }
 
     // Helper: compute grayscale at (x, y)
     const getGray = (x, y) => {
@@ -806,14 +763,11 @@ class BubbleScanner {
       this.lastDiagnostics.scanSuccess = scanSuccess;
 
       if (scanSuccess) {
-        // Stabilize tracking
-        const reqFrames = this.adaptiveState.requiredStableFrames;
-        const coolDelay = this.adaptiveState.lockoutFrames;
-
+        // Stabilize tracking (requires 6 consecutive stable frames ≈ 0.18s)
         if (studentIdStr === this.lastScannedId && parsedScoreVal === this.lastScannedScore) {
           this.stableFrames++;
-          if (this.stableFrames >= reqFrames) {
-            // Check lockout here so we still process and display diagnostics, but ignore saving duplicates during cooldown
+          if (this.stableFrames >= 6) {
+            // Check lockout to prevent double scanning
             if (this.scanLockout > 0) {
               if (this.options.onStatusChange) {
                 this.options.onStatusChange("Processing scan cooldown...", true);
@@ -828,22 +782,18 @@ class BubbleScanner {
               this.options.onScanSuccess(studentIdStr, parsedScoreVal, this.lastDetectedQR);
             }
             
-            // Evolve streak and set cooldown lockout
-            this.scanStreak++;
-            this.lastScanTime = performance.now();
-            this.scanLockout = coolDelay;
+            this.scanLockout = 30; // 1 second cooldown
             this.stableFrames = 0;
             this.lastScannedId = "";
             this.lastScannedScore = -1;
             
-            const speedMsg = this.scanStreak >= 5 ? "⚡⚡ Ultra-Burst Saved! Next sheet" : this.scanStreak >= 2 ? "⚡ Rapid Scan Saved! Next sheet" : "Scan saved! Remove paper";
             if (this.options.onStatusChange) {
-              this.options.onStatusChange(speedMsg, true);
+              this.options.onStatusChange("Scan saved! Remove paper", true);
             }
             return;
           } else {
             if (this.options.onStatusChange) {
-              const pct = Math.min(100, Math.round((this.stableFrames / reqFrames) * 100));
+              const pct = Math.min(100, Math.round((this.stableFrames / 6) * 100));
               this.options.onStatusChange(`Holding steady (${pct}%)`, true);
             }
           }
@@ -853,8 +803,7 @@ class BubbleScanner {
           this.lastScannedId = studentIdStr;
           this.lastScannedScore = parsedScoreVal;
           if (this.options.onStatusChange) {
-            const modeMsg = this.adaptiveState.rapidMode ? `⚡ Rapid Lock (Hold ${reqFrames}f)` : "Valid sheet detected - Hold steady";
-            this.options.onStatusChange(modeMsg, true);
+            this.options.onStatusChange("Valid sheet detected - Hold steady", true);
           }
         }
       } else {

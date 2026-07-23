@@ -118,32 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
         qrLockBadge.style.color = 'var(--text-secondary)';
         qrLockBadge.style.borderColor = 'var(--border-color)';
       }
-    },
-    onAdaptiveChange: (adaptiveState) => {
-      const adaptiveBadge = document.getElementById('adaptive-engine-badge');
-      if (!adaptiveBadge) return;
-
-      if (adaptiveState.rapidMode) {
-        adaptiveBadge.textContent = `⚡ Rapid Streak (x${adaptiveState.streakCount})`;
-        adaptiveBadge.style.background = 'rgba(16, 185, 129, 0.2)';
-        adaptiveBadge.style.color = '#10b981';
-        adaptiveBadge.style.borderColor = '#10b981';
-      } else if (adaptiveState.lightingMode === 'dark_room') {
-        adaptiveBadge.textContent = '🌙 Dark Room Adaptive';
-        adaptiveBadge.style.background = 'rgba(99, 102, 241, 0.18)';
-        adaptiveBadge.style.color = '#818cf8';
-        adaptiveBadge.style.borderColor = 'rgba(99, 102, 241, 0.4)';
-      } else if (adaptiveState.lightingMode === 'glare') {
-        adaptiveBadge.textContent = '☀️ Glare Guard Active';
-        adaptiveBadge.style.background = 'rgba(245, 158, 11, 0.18)';
-        adaptiveBadge.style.color = '#f59e0b';
-        adaptiveBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-      } else {
-        adaptiveBadge.textContent = '⚡ Auto-Evolving';
-        adaptiveBadge.style.background = 'rgba(16, 185, 129, 0.12)';
-        adaptiveBadge.style.color = '#10b981';
-        adaptiveBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-      }
     }
   });
 
