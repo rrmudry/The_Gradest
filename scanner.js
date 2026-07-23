@@ -259,32 +259,14 @@ class BubbleScanner {
         this.lastDetectedQR = qrCode.data.trim();
         this.lastQRTimestamp = performance.now();
       } else if (performance.now() - this.lastQRTimestamp > this.QR_TTL_MS) {
+        // TTL expired — clear the cached QR
         this.lastDetectedQR = null;
       }
+      // Notify app of current QR state on every frame
       if (this.options.onQRChange) {
         this.options.onQRChange(this.lastDetectedQR);
       }
     }
-
-    // Reset frame diagnostics object
-    this.lastDiagnostics = {
-      timestamp: performance.now(),
-      width: this.width,
-      height: this.height,
-      quadFound: false,
-      quadCorners: null,
-      quadMetrics: null,
-      globalMin: 0,
-      globalMax: 0,
-      dynThreshold: 0,
-      adaptiveState: null,
-      idBubbles: [],
-      scoreBubbles: [],
-      studentId: "",
-      score: -1,
-      maxScore: this.options.maxScore,
-      valid: false
-    };
 
     // 2. Clear output canvas and draw processed video frame
     this.ctx.clearRect(0, 0, this.width, this.height);
@@ -298,11 +280,9 @@ class BubbleScanner {
     const samples = [];
     const sampleCount = 1000;
     const step = Math.max(4, Math.floor(pixels.length / 4 / sampleCount) * 4);
-    let sumGray = 0;
     for (let i = 0; i < pixels.length; i += step) {
       const gray = 0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2];
       samples.push(gray);
-      sumGray += gray;
     }
     samples.sort((a, b) => a - b);
     
@@ -310,52 +290,11 @@ class BubbleScanner {
     const p96Idx = Math.floor(samples.length * 0.96);
     const globalMin = samples[p2Idx];
     const globalMax = samples[p96Idx];
-    const avgLuminance = sumGray / samples.length;
-
-    // Environmental Lighting Adaptation
-    let lightingMode = "Standard";
-    let threshFactor = 0.38;
-
-    if (avgLuminance < 85) {
-      lightingMode = "Shadow Adaptive";
-      threshFactor = 0.42; // Raise threshold slightly to capture faint paper marks in dim light
-    } else if (avgLuminance > 185) {
-      lightingMode = "High Exposure";
-      threshFactor = 0.34; // Lower threshold slightly to prevent glare false positives
-    }
-
-    const dynThreshold = globalMin + (globalMax - globalMin) * threshFactor;
-
-    // Progressive Streak Engine timing
-    const nowTime = performance.now();
-    if (this.lastScanTime > 0 && (nowTime - this.lastScanTime) > this.streakTimeoutMs) {
-      this.scanStreak = 0;
-    }
-
-    let requiredFrames = 18;
-    let lockoutDelay = 30;
-
-    if (this.scanStreak >= 3) {
-      requiredFrames = 4;   // ~0.12s rapid lock
-      lockoutDelay = 12;    // ~0.4s cooldown
-    } else if (this.scanStreak >= 1) {
-      requiredFrames = 9;   // ~0.27s fast lock
-      lockoutDelay = 20;    // ~0.6s cooldown
-    }
-
-    this.adaptiveState = {
-      lightingMode,
-      ambientLuminance: Math.round(avgLuminance),
-      requiredStableFrames: requiredFrames,
-      lockoutFrames: lockoutDelay,
-      streakCount: this.scanStreak,
-      rapidMode: this.scanStreak >= 3
-    };
+    const dynThreshold = globalMin + (globalMax - globalMin) * 0.38;
 
     this.lastDiagnostics.globalMin = Math.round(globalMin);
     this.lastDiagnostics.globalMax = Math.round(globalMax);
     this.lastDiagnostics.dynThreshold = Math.round(dynThreshold);
-    this.lastDiagnostics.adaptiveState = this.adaptiveState;
 
     // Helper: compute grayscale at (x, y)
     const getGray = (x, y) => {
@@ -451,10 +390,10 @@ class BubbleScanner {
       this.lastDiagnostics.quadCorners = this.trackedAnchors.map((p, i) => ({
         corner: ["TL", "TR", "BL", "BR"][i],
         x: Math.round(p.x),
-        y: Math.round(p.y)
+        y: Math.round(p.y),
+        area: p.area || 0
       }));
       // Calculate quad validation metrics
-      const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
       const diagWTop = dist(TL, TR);
       const diagWBottom = dist(BL, BR);
       const diagHLeft = dist(TL, BL);
@@ -470,44 +409,64 @@ class BubbleScanner {
         const v2y = p2.y - p.y;
         const d1 = Math.hypot(v1x, v1y);
         const d2 = Math.hypot(v2x, v2y);
-        if (d1 === 0 || d2 === 0) return 0;
+        if (d1 === 0 || d2 === 0) return 1.0;
         return (v1x * v2x + v1y * v2y) / (d1 * d2);
       };
-      
-      const angleTL = Math.round(Math.acos(getCornerCos(TL, TR, BL)) * (180 / Math.PI));
-      const angleTR = Math.round(Math.acos(getCornerCos(TR, TL, BR)) * (180 / Math.PI));
-      const angleBR = Math.round(Math.acos(getCornerCos(BR, TR, BL)) * (180 / Math.PI));
-      const angleBL = Math.round(Math.acos(getCornerCos(BL, TL, BR)) * (180 / Math.PI));
+
+      const cosTL = getCornerCos(TL, TR, BL);
+      const cosTR = getCornerCos(TR, TL, BR);
+      const cosBL = getCornerCos(BL, TL, BR);
+      const cosBR = getCornerCos(BR, TR, BL);
+
+      const toDegrees = (cosVal) => Math.round(Math.acos(Math.max(-1.0, Math.min(1.0, cosVal))) * 180 / Math.PI);
 
       this.lastDiagnostics.quadMetrics = {
-        topWidth: Math.round(diagWTop),
-        bottomWidth: Math.round(diagWBottom),
-        leftHeight: Math.round(diagHLeft),
-        rightHeight: Math.round(diagHRight),
-        aspectRatio: parseFloat((diagAvgW / diagAvgH).toFixed(3)),
-        angles: { TL: angleTL, TR: angleTR, BR: angleBR, BL: angleBL }
+        wTop: Math.round(diagWTop),
+        wBottom: Math.round(diagWBottom),
+        hLeft: Math.round(diagHLeft),
+        hRight: Math.round(diagHRight),
+        aspect: parseFloat((diagAvgW / diagAvgH).toFixed(3)),
+        asymW: parseFloat((Math.abs(diagWTop - diagWBottom) / diagAvgW).toFixed(3)),
+        asymH: parseFloat((Math.abs(diagHLeft - diagHRight) / diagAvgH).toFixed(3)),
+        angleTL: toDegrees(cosTL),
+        angleTR: toDegrees(cosTR),
+        angleBL: toDegrees(cosBL),
+        angleBR: toDegrees(cosBR)
       };
 
-      // Draw tracked quadrilateral boundary line
+      // Draw tracked anchors in green
+      this.ctx.strokeStyle = '#10b981';
+      this.ctx.lineWidth = 2;
       this.ctx.beginPath();
       this.ctx.moveTo(TL.x, TL.y);
       this.ctx.lineTo(TR.x, TR.y);
       this.ctx.lineTo(BR.x, BR.y);
       this.ctx.lineTo(BL.x, BL.y);
       this.ctx.closePath();
-      
-      this.ctx.lineWidth = 2.5;
-      this.ctx.strokeStyle = '#10b981'; // emerald green
       this.ctx.stroke();
 
-      // Attempt QR code decoding in the header area between top anchors
-      this.scanQRCodeInHeader(pixels, TL, TR);
-    } else {
-      this.lastDiagnostics.quadFound = false;
-    }
+      for (let k = 0; k < 4; k++) {
+        const p = this.trackedAnchors[k];
+        this.ctx.fillStyle = '#10b981';
+        this.ctx.strokeStyle = '#fff';
+        this.ctx.lineWidth = 1;
 
-    // 4. If quadrilateral lock is valid, evaluate bubble grid markings
-    if (allFound && geometricValid) {
+        if (k < 2) {
+          // Top anchors: Draw square overlays
+          this.ctx.beginPath();
+          this.ctx.rect(p.x - 7, p.y - 7, 14, 14);
+          this.ctx.fill();
+          this.ctx.stroke();
+        } else {
+          // Bottom anchors: Draw circular overlays
+          this.ctx.beginPath();
+          this.ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+          this.ctx.fill();
+          this.ctx.stroke();
+        }
+      }
+
+      // Decrement lockout frame counter
       if (this.scanLockout > 0) {
         this.scanLockout--;
       }
@@ -515,6 +474,9 @@ class BubbleScanner {
       // 5. Sample the bubble grids
       const [TL_p, TR_p, BL_p, BR_p] = this.trackedAnchors;
 
+      // 3D Perspective Homography Solver mapping
+      // Maps unit square (u, v) in [0, 1] to the perspective-warped quad (TL_p, TR_p, BL_p, BR_p)
+      // to correctly handle out-of-plane rotation (3D tilt, pitch, and yaw).
       const x0 = TL_p.x, y0 = TL_p.y;
       const x1 = TR_p.x, y1 = TR_p.y;
       const x2 = BL_p.x, y2 = BL_p.y;
@@ -532,6 +494,7 @@ class BubbleScanner {
       let mapCoords;
 
       if (Math.abs(det) < 0.001) {
+        // Fallback to bilinear mapping if the coordinates are degenerate/collinear
         mapCoords = (u, v) => {
           const x = (1 - u) * (1 - v) * x0 + u * (1 - v) * x1 + (1 - u) * v * x2 + u * v * x3;
           const y = (1 - u) * (1 - v) * y0 + u * (1 - v) * y1 + (1 - u) * v * y2 + u * v * y3;
@@ -555,14 +518,16 @@ class BubbleScanner {
         };
       }
 
-      // Measure bubble density based on paper size scale
-      const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      // Measure bubble density based on paper size scale (adaptive radius)
       const wTop = dist(TL_p, TR_p);
       const wBottom = dist(BL_p, BR_p);
       const avgW = (wTop + wBottom) / 2;
       
+      // Calculate expected inner bubble radius in camera pixels (physical inner radius is ~3.2 pt)
       const bubbleR = Math.max(1.5, 3.2 * (avgW / 250));
 
+      // Returns average brightness of the darkest 45% of pixels inside the bubble circle
+      // to handle messy, faint, or partially erased fills.
       const sampleBubble = (u, v) => {
         const center = mapCoords(u, v);
         const vals = [];
@@ -584,8 +549,10 @@ class BubbleScanner {
           return { avg: 255, x: center.x, y: center.y };
         }
 
+        // Sort pixels from darkest to brightest
         vals.sort((a, b) => a - b);
         
+        // Take the average of the darkest 45% of the pixels
         const countToAverage = Math.max(1, Math.round(vals.length * 0.45));
         let sum = 0;
         for (let i = 0; i < countToAverage; i++) {
@@ -601,8 +568,9 @@ class BubbleScanner {
       };
 
       // Sample Student ID (6 columns)
+      // Normalized coordinates: u_id = (10 + col * 14)/220, v_id = (100 + row * 14)/300
       const studentIdDigits = [];
-      const idBubblesToDraw = [];
+      const idBubblesToDraw = []; // store for drawing feedback
       
       for (let col = 0; col < 6; col++) {
         const u = (10 + col * 14) / 220;
@@ -610,6 +578,19 @@ class BubbleScanner {
         
         for (let row = 0; row < 10; row++) {
           const v = (100 + row * 14) / 300;
+          const sample = sampleBubble(u, v);
+          columnGrays.push({ row, sample });
+        }
+
+        // Process column grays to find darkest bubble
+        columnGrays.sort((a, b) => a.sample.avg - b.sample.avg);
+        const darkest = columnGrays[0];
+        
+        // Calculate empty-bubble baseline (average of the other 9 bubbles)
+        let otherSum = 0;
+        for (let idx = 1; idx < 10; idx++) {
+          otherSum += columnGrays[idx].sample.avg;
+        }
         const otherAvg = otherSum / 9;
         const delta = otherAvg - darkest.sample.avg;
 
@@ -830,6 +811,7 @@ class BubbleScanner {
         if (this.options.onStatusChange) {
           this.options.onStatusChange(errorMsg, true);
         }
+      }
 
       // Display live numbers on top in a floating style
       this.ctx.font = "bold 16px 'Outfit', sans-serif";

@@ -89,9 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseDialog = document.getElementById('btn-close-dialog');
   const labelEditScore = document.getElementById('label-edit-score');
 
-  const hudLightingBadge = document.getElementById('hud-lighting-badge');
-  const hudStreakBadge = document.getElementById('hud-streak-badge');
-
   // Initialize Scanner Object
   const scanner = new BubbleScanner(scanVideo, scanCanvas, {
     sensitivity: state.sensitivity,
@@ -107,37 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         scanStatusText.className = "badge badge-warning";
         scanViewport.classList.remove('aligned');
-      }
-
-      // Update Progressive Adaptive Engine HUD badges
-      if (scanner && scanner.adaptiveState && hudLightingBadge && hudStreakBadge) {
-        const { lightingMode, streakCount, rapidMode } = scanner.adaptiveState;
-        
-        hudLightingBadge.textContent = `☀️ Lighting: ${lightingMode}`;
-        if (lightingMode === 'Shadow Adaptive') {
-          hudLightingBadge.style.color = '#f59e0b';
-          hudLightingBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
-        } else if (lightingMode === 'High Exposure') {
-          hudLightingBadge.style.color = '#38bdf8';
-          hudLightingBadge.style.borderColor = 'rgba(56, 189, 248, 0.4)';
-        } else {
-          hudLightingBadge.style.color = '#e2e8f0';
-          hudLightingBadge.style.borderColor = 'rgba(255, 255, 255, 0.15)';
-        }
-
-        if (rapidMode) {
-          hudStreakBadge.textContent = `⚡ Rapid Lock (0.12s) • Streak x${streakCount}`;
-          hudStreakBadge.style.color = '#10b981';
-          hudStreakBadge.style.borderColor = 'rgba(16, 185, 129, 0.5)';
-        } else if (streakCount > 0) {
-          hudStreakBadge.textContent = `⚡ Fast Lock (0.27s) • Streak x${streakCount}`;
-          hudStreakBadge.style.color = '#38bdf8';
-          hudStreakBadge.style.borderColor = 'rgba(56, 189, 248, 0.4)';
-        } else {
-          hudStreakBadge.textContent = `⚡ Lock: Normal (0.6s)`;
-          hudStreakBadge.style.color = '#94a3b8';
-          hudStreakBadge.style.borderColor = 'rgba(148, 163, 184, 0.2)';
-        }
       }
     },
     onQRChange: (qrValue) => {
@@ -1403,29 +1369,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const assignments = getStoredAssignments();
 
-    if (silent) {
-      // Auto-save (live updates):
-      // Only auto-save if we are editing an ALREADY pinned assignment under the exact same name.
-      // Do NOT auto-delete or overwrite existing assignments during casual typing.
-      const pinnedName = state.savedAssignmentName;
-      if (!pinnedName || pinnedName !== name || !assignments[pinnedName]) {
-        return;
-      }
-
-      assignments[pinnedName] = {
-        assignmentName: state.assignmentName,
-        assignmentDetails: state.assignmentDetails,
-        maxScore: state.maxScore,
-        grades: state.grades,
-        roster: Array.from(state.roster.entries()),
-        sensitivity: state.sensitivity,
-        timestamp: Date.now()
-      };
-      setStoredAssignments(assignments);
-      return;
+    // If the assignment name was changed, clean up old entry
+    if (state.savedAssignmentName && state.savedAssignmentName !== name && assignments[state.savedAssignmentName]) {
+      delete assignments[state.savedAssignmentName];
     }
 
-    // Explicit Save ("Save Current" button click):
     assignments[name] = {
       assignmentName: state.assignmentName,
       assignmentDetails: state.assignmentDetails,
@@ -1441,7 +1389,10 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('the_gradest_active_assignment_name', name);
 
     updateAssignmentsDropdown();
-    showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
+
+    if (!silent) {
+      showToast("Assignment Saved", `"${name}" saved successfully to local storage.`, "success");
+    }
   }
 
   function loadAssignment(name) {
