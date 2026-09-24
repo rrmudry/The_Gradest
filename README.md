@@ -16,7 +16,7 @@
   * **Percentile Sub-sampling**: Sorts pixels inside the bubble boundaries and averages the **darkest 45% of pixels**—making it highly resilient to erased smudges, messy markings, or incomplete pencil marks.
   * **Relative Column Darkness Calibration**: Compares the darkest bubble against the average of the other 9 empty bubbles in that column, scaling contrast thresholds using an interactive slider.
 * **OMR Diagnostics & Tuning Console**: Real-time logging of binarization statistics, anchor locations, aspect ratio calculations, and row-by-row bubble brightness grids.
-* **Grades Directory & Roster Mapping**: Syncs scanned student IDs with a loaded CSV student roster, allows in-place manual overrides, and exports the final grades directly to CSV.
+* **Grades Directory, Manual Entry & Roster Mapping**: Direct manual grade entry modal on the live webcam scanner page for students who completed work on paper without bubbling or need a score override (with fast roster dropdown search, ungraded countdown, quick percent preset chips, live percentage display, rapid "Save & Add Another" batching, and in-place manual edits), syncs with Cloud Firestore and exports directly to CSV.
 
 ---
 

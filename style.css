@@ -655,6 +655,31 @@ tr:hover td {
   border: 1px solid rgba(244, 63, 94, 0.2);
 }
 
+.badge-manual,
+.badge-info {
+  background-color: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.btn-preset-score {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-preset-score:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--primary);
+}
+
 /* Scanner Toast notifications */
 .scan-toast-container {
   position: fixed;

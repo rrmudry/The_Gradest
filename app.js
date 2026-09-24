@@ -90,6 +90,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseDialog = document.getElementById('btn-close-dialog');
   const labelEditScore = document.getElementById('label-edit-score');
 
+  // Manual Grade Entry Elements
+  const btnManualEntryScan = document.getElementById('btn-manual-entry-scan');
+  const btnQuickManualOutput = document.getElementById('btn-quick-manual-output');
+  const btnScannerEmptyManual = document.getElementById('btn-scanner-empty-manual');
+  const btnGradesManualEntry = document.getElementById('btn-grades-manual-entry');
+  const dialogManualGrade = document.getElementById('dialog-manual-grade');
+  const manualGradeForm = document.getElementById('manual-grade-form');
+  const manualStudentSelect = document.getElementById('manual-student-select');
+  const manualStudentId = document.getElementById('manual-student-id');
+  const manualStudentName = document.getElementById('manual-student-name');
+  const manualScore = document.getElementById('manual-score');
+  const labelManualScore = document.getElementById('label-manual-score');
+  const manualMaxScoreDisplay = document.getElementById('manual-max-score-display');
+  const manualScorePercentBadge = document.getElementById('manual-score-percent-badge');
+  const manualAssignmentBadge = document.getElementById('manual-assignment-badge');
+  const manualUngradedCount = document.getElementById('manual-ungraded-count');
+  const manualExistingWarning = document.getElementById('manual-existing-warning');
+  const manualExistingScore = document.getElementById('manual-existing-score');
+  const btnCloseManualDialog = document.getElementById('btn-close-manual-dialog');
+  const btnManualSaveAnother = document.getElementById('btn-manual-save-another');
+  const btnManualSave = document.getElementById('btn-manual-save');
+
   // Initialize Scanner Object
   const scanner = new BubbleScanner(scanVideo, scanCanvas, {
     sensitivity: state.sensitivity,
@@ -901,7 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="recent-scan-id">${g.id} (${escapeHTML(displayName)})</span>
           <span class="recent-scan-score">${g.score} / ${state.maxScore} (${g.percentage}%) - ${g.timestamp}</span>
         </div>
-        <span class="badge ${g.status === 'Valid' ? 'badge-success' : 'badge-warning'}">${g.status}</span>
+        <span class="badge ${g.status === 'Valid' ? 'badge-success' : (g.status && g.status.includes('Manual')) ? 'badge-manual' : 'badge-warning'}">${g.status}</span>
       `;
       
       recentScansContainer.appendChild(item);
@@ -948,8 +970,9 @@ document.addEventListener('DOMContentLoaded', () => {
     state.grades.forEach((g, index) => {
       const tr = document.createElement('tr');
       
+      const isManual = g.status && g.status.includes('Manual');
       const badgeClass = g.status === 'Valid' ? 'badge-success' : 
-                          g.status === 'Manually Edited' ? 'badge-success' : 'badge-warning';
+                          isManual ? 'badge-manual' : 'badge-warning';
 
       tr.innerHTML = `
         <td style="font-family:'JetBrains Mono', monospace; font-weight: 500;">${g.id}</td>
@@ -1107,6 +1130,361 @@ document.addEventListener('DOMContentLoaded', () => {
     saveCurrentAssignment(true);
   });
 
+  // --- MANUAL GRADE ENTRY LOGIC ---
+
+  function populateManualRosterSelect() {
+    if (!manualStudentSelect) return;
+    manualStudentSelect.innerHTML = '<option value="">-- Select Student (or enter ID below) --</option>';
+
+    const studentMap = new Map();
+    // 1. Assignment-specific roster
+    if (state.roster) {
+      for (let [id, name] of state.roster.entries()) {
+        if (id && name) studentMap.set(String(id), name);
+      }
+    }
+    // 2. Global Firestore roster
+    if (state.globalRoster) {
+      for (let [id, name] of state.globalRoster.entries()) {
+        if (id && name && !studentMap.has(String(id))) {
+          studentMap.set(String(id), name);
+        }
+      }
+    }
+
+    const sorted = Array.from(studentMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+
+    let gradedCount = 0;
+    const totalStudents = sorted.length;
+
+    sorted.forEach(([id, name]) => {
+      const existing = state.grades.find(g => g.id === id || (g.id && g.id.replace(/^0+/, '') === id.replace(/^0+/, '')));
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.dataset.name = name;
+      if (existing) {
+        gradedCount++;
+        opt.textContent = `${name} (${id}) — ✓ Graded: ${existing.score}/${state.maxScore} (${existing.percentage}%)`;
+        opt.dataset.existingScore = existing.score;
+        opt.dataset.isGraded = "true";
+      } else {
+        opt.textContent = `${name} (${id}) — [Not yet graded]`;
+        opt.dataset.isGraded = "false";
+      }
+      manualStudentSelect.appendChild(opt);
+    });
+
+    if (manualUngradedCount) {
+      if (totalStudents > 0) {
+        const ungraded = totalStudents - gradedCount;
+        manualUngradedCount.textContent = `${ungraded} of ${totalStudents} ungraded`;
+        manualUngradedCount.style.color = ungraded === 0 ? 'var(--accent-emerald)' : 'var(--accent-amber)';
+      } else {
+        manualUngradedCount.textContent = 'No roster loaded';
+        manualUngradedCount.style.color = 'var(--text-muted)';
+      }
+    }
+  }
+
+  function updateManualScorePercent() {
+    if (!manualScore || !manualScorePercentBadge) return;
+    const val = parseInt(manualScore.value);
+    if (isNaN(val) || val < 0) {
+      manualScorePercentBadge.textContent = '0%';
+      manualScorePercentBadge.style.color = 'var(--text-muted)';
+      manualScorePercentBadge.style.backgroundColor = 'rgba(148, 163, 184, 0.1)';
+      manualScorePercentBadge.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+      return;
+    }
+    const pct = Math.round((val / state.maxScore) * 100);
+    manualScorePercentBadge.textContent = `${pct}%`;
+    if (pct >= 80) {
+      manualScorePercentBadge.style.color = 'var(--accent-emerald)';
+      manualScorePercentBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+      manualScorePercentBadge.style.backgroundColor = 'rgba(16, 185, 129, 0.1)';
+    } else if (pct >= 60) {
+      manualScorePercentBadge.style.color = 'var(--accent-amber)';
+      manualScorePercentBadge.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+      manualScorePercentBadge.style.backgroundColor = 'rgba(245, 158, 11, 0.1)';
+    } else {
+      manualScorePercentBadge.style.color = 'var(--accent-rose)';
+      manualScorePercentBadge.style.borderColor = 'rgba(244, 63, 94, 0.3)';
+      manualScorePercentBadge.style.backgroundColor = 'rgba(244, 63, 94, 0.1)';
+    }
+  }
+
+  function checkManualStudentIdMatch(id) {
+    if (!id) {
+      if (manualExistingWarning) manualExistingWarning.style.display = 'none';
+      return;
+    }
+    const nameMatch = lookupRosterName(id);
+    if (nameMatch !== "Not in roster") {
+      manualStudentName.value = nameMatch;
+    }
+    
+    // Sync dropdown if student is in roster
+    if (manualStudentSelect) {
+      let matched = false;
+      for (let i = 0; i < manualStudentSelect.options.length; i++) {
+        const optVal = manualStudentSelect.options[i].value;
+        if (optVal === id || (optVal && optVal.replace(/^0+/, '') === id.replace(/^0+/, ''))) {
+          manualStudentSelect.selectedIndex = i;
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) manualStudentSelect.selectedIndex = 0;
+    }
+
+    // Check existing grade
+    const existing = state.grades.find(g => g.id === id || (g.id && g.id.replace(/^0+/, '') === id.replace(/^0+/, '')));
+    if (existing) {
+      if (manualExistingWarning && manualExistingScore) {
+        manualExistingScore.textContent = `${existing.score}/${state.maxScore} (${existing.percentage}%)`;
+        manualExistingWarning.style.display = 'block';
+      }
+      if (!manualScore.value) {
+        manualScore.value = existing.score;
+        updateManualScorePercent();
+      }
+    } else {
+      if (manualExistingWarning) manualExistingWarning.style.display = 'none';
+    }
+  }
+
+  function openManualGradeDialog(prefillId = null) {
+    if (!dialogManualGrade) return;
+
+    if (manualAssignmentBadge) {
+      manualAssignmentBadge.textContent = `${state.assignmentName || 'Quiz 1'} (Max: ${state.maxScore})`;
+    }
+    if (labelManualScore) {
+      labelManualScore.textContent = `Grade Score (0 - ${state.maxScore})`;
+    }
+    if (manualMaxScoreDisplay) {
+      manualMaxScoreDisplay.textContent = `/ ${state.maxScore}`;
+    }
+    if (manualScore) {
+      manualScore.max = state.maxScore;
+    }
+
+    populateManualRosterSelect();
+
+    // Reset inputs
+    if (manualStudentSelect) manualStudentSelect.value = '';
+    if (manualStudentId) manualStudentId.value = '';
+    if (manualStudentName) manualStudentName.value = '';
+    if (manualScore) manualScore.value = '';
+    updateManualScorePercent();
+    if (manualExistingWarning) manualExistingWarning.style.display = 'none';
+
+    if (prefillId) {
+      manualStudentId.value = prefillId;
+      checkManualStudentIdMatch(prefillId);
+    }
+
+    dialogManualGrade.classList.add('open');
+
+    // Auto focus
+    setTimeout(() => {
+      if (manualStudentSelect && manualStudentSelect.options.length > 1) {
+        manualStudentSelect.focus();
+      } else if (manualStudentId) {
+        manualStudentId.focus();
+      }
+    }, 120);
+  }
+
+  function closeManualGradeDialog() {
+    if (!dialogManualGrade) return;
+    dialogManualGrade.classList.remove('open');
+    if (manualGradeForm) manualGradeForm.reset();
+  }
+
+  function saveManualGrade(keepOpen = false) {
+    const id = manualStudentId.value.trim();
+    let name = manualStudentName.value.trim();
+    const scoreVal = parseInt(manualScore.value);
+
+    if (!id || id.length < 3) {
+      showToast("Invalid Student ID", "Please enter a valid student ID number (at least 3 digits).", "error");
+      manualStudentId.focus();
+      return;
+    }
+
+    if (isNaN(scoreVal) || scoreVal < 0 || scoreVal > state.maxScore) {
+      showToast("Invalid Score", `Score must be an integer between 0 and ${state.maxScore}.`, "error");
+      manualScore.focus();
+      return;
+    }
+
+    // Look up roster name if not entered or to verify
+    const rosterMatch = lookupRosterName(id);
+    if (rosterMatch !== "Not in roster") {
+      name = rosterMatch;
+    } else if (!name) {
+      name = "Not in roster";
+    }
+
+    const percentage = Math.round((scoreVal / state.maxScore) * 100);
+
+    const existingIndex = state.grades.findIndex(g => g.id === id || (g.id && g.id.replace(/^0+/, '') === id.replace(/^0+/, '')));
+    const newGrade = {
+      id: id,
+      score: scoreVal,
+      name: name,
+      percentage: percentage,
+      status: name !== "Not in roster" ? "Manually Entered" : "Manual (No Roster)",
+      timestamp: new Date().toLocaleTimeString()
+    };
+
+    if (existingIndex >= 0) {
+      state.grades[existingIndex] = newGrade;
+      showToast("Grade Overwritten", `Overwrote ID ${id} (${name}) with manual score ${scoreVal}/${state.maxScore} (${percentage}%).`, "warning");
+    } else {
+      state.grades.push(newGrade);
+      showToast("Manual Grade Recorded", `Recorded ${name} (${id}): ${scoreVal}/${state.maxScore} (${percentage}%).`, "success");
+    }
+
+    // Update Scanner Output card in Webcam tab
+    scanOutAssignment.textContent = state.assignmentName;
+    scanOutMaxScore.textContent = state.maxScore;
+    scanOutStudentId.textContent = id;
+    scanOutStudentName.textContent = name;
+    scanOutScore.textContent = scoreVal;
+    scanOutPercentage.textContent = `${percentage}%`;
+    scannerPlaceholder.style.display = 'none';
+    scannerStatsContainer.style.display = 'flex';
+    btnSaveScan.disabled = true; // already saved!
+
+    // Refresh all views & persist
+    renderGradesTable();
+    updateStatsDashboard();
+    renderRecentScansList();
+    saveCurrentAssignment(true);
+
+    if (keepOpen) {
+      // Clear inputs for next paper
+      manualStudentSelect.value = '';
+      manualStudentId.value = '';
+      manualStudentName.value = '';
+      manualScore.value = '';
+      updateManualScorePercent();
+      if (manualExistingWarning) manualExistingWarning.style.display = 'none';
+      populateManualRosterSelect(); // refresh options with updated graded status
+      setTimeout(() => {
+        if (manualStudentSelect && manualStudentSelect.options.length > 1) {
+          manualStudentSelect.focus();
+        } else {
+          manualStudentId.focus();
+        }
+      }, 50);
+    } else {
+      closeManualGradeDialog();
+    }
+  }
+
+  // Event Listeners for Manual Grade Entry
+  if (btnManualEntryScan) {
+    btnManualEntryScan.addEventListener('click', () => openManualGradeDialog());
+  }
+  if (btnQuickManualOutput) {
+    btnQuickManualOutput.addEventListener('click', () => openManualGradeDialog());
+  }
+  if (btnScannerEmptyManual) {
+    btnScannerEmptyManual.addEventListener('click', () => openManualGradeDialog());
+  }
+  if (btnGradesManualEntry) {
+    btnGradesManualEntry.addEventListener('click', () => openManualGradeDialog());
+  }
+  if (btnCloseManualDialog) {
+    btnCloseManualDialog.addEventListener('click', closeManualGradeDialog);
+  }
+
+  // Close dialog on backdrop click
+  if (dialogManualGrade) {
+    dialogManualGrade.addEventListener('click', (e) => {
+      if (e.target === dialogManualGrade) closeManualGradeDialog();
+    });
+  }
+
+  if (manualStudentSelect) {
+    manualStudentSelect.addEventListener('change', (e) => {
+      const selectedId = e.target.value;
+      if (!selectedId) {
+        manualStudentId.value = '';
+        manualStudentName.value = '';
+        if (manualExistingWarning) manualExistingWarning.style.display = 'none';
+        return;
+      }
+      const selectedOpt = manualStudentSelect.options[manualStudentSelect.selectedIndex];
+      manualStudentId.value = selectedId;
+      manualStudentName.value = selectedOpt.dataset.name || lookupRosterName(selectedId);
+      
+      const existing = state.grades.find(g => g.id === selectedId || (g.id && g.id.replace(/^0+/, '') === selectedId.replace(/^0+/, '')));
+      if (existing) {
+        if (manualExistingWarning && manualExistingScore) {
+          manualExistingScore.textContent = `${existing.score}/${state.maxScore} (${existing.percentage}%)`;
+          manualExistingWarning.style.display = 'block';
+        }
+        manualScore.value = existing.score;
+        updateManualScorePercent();
+      } else {
+        if (manualExistingWarning) manualExistingWarning.style.display = 'none';
+        manualScore.value = '';
+        updateManualScorePercent();
+        manualScore.focus();
+      }
+    });
+  }
+
+  if (manualStudentId) {
+    manualStudentId.addEventListener('input', (e) => {
+      checkManualStudentIdMatch(e.target.value.trim());
+    });
+  }
+
+  if (manualScore) {
+    manualScore.addEventListener('input', updateManualScorePercent);
+  }
+
+  // Percentage presets
+  document.querySelectorAll('.btn-preset-score').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pct = parseFloat(e.currentTarget.getAttribute('data-pct'));
+      if (!isNaN(pct)) {
+        manualScore.value = Math.round(pct * state.maxScore);
+        updateManualScorePercent();
+      }
+    });
+  });
+
+  if (manualGradeForm) {
+    manualGradeForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      saveManualGrade(false);
+    });
+  }
+
+  if (btnManualSaveAnother) {
+    btnManualSaveAnother.addEventListener('click', (e) => {
+      e.preventDefault();
+      saveManualGrade(true);
+    });
+  }
+
+  // Keyboard shortcut: Escape closes modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (dialogManualGrade && dialogManualGrade.classList.contains('open')) {
+        closeManualGradeDialog();
+      } else if (dialogEditGrade && dialogEditGrade.classList.contains('open')) {
+        closeEditDialog();
+      }
+    }
+  });
+
   // Clear all recorded grades
   btnClearGrades.addEventListener('click', () => {
     if (state.grades.length === 0) return;
@@ -1226,6 +1604,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderGradesTable();
       updateStatsDashboard();
       renderRecentScansList();
+      populateManualRosterSelect();
       saveCurrentAssignment(true);
     } catch (err) {
       console.error(err);
@@ -1632,6 +2011,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatsDashboard();
     renderRecentScansList();
     updateAssignmentsDropdown();
+    populateManualRosterSelect();
 
     showToast("Assignment Loaded", `Loaded "${state.assignmentName}".`, "success");
   }

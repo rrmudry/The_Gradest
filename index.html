@@ -182,10 +182,14 @@
             <div class="scan-laser"></div>
           </div>
 
-          <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-            <div class="btn-group">
+          <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <div class="btn-group" style="flex-wrap: wrap;">
               <button id="btn-toggle-camera" class="btn btn-primary">Start Scanner</button>
               <button id="btn-manual-scan" class="btn btn-secondary" disabled>Capture Frame</button>
+              <button id="btn-manual-entry-scan" type="button" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 0.4rem; border-color: rgba(99, 102, 241, 0.4); color: var(--text-primary); font-weight: 600;">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                Manual Grade Entry
+              </button>
             </div>
             
             <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -197,23 +201,31 @@
 
         <div class="scanner-sidebar">
           <div class="panel" style="flex: 1;">
-            <div class="panel-header">
-              <h2 class="panel-title">Scanner Output</h2>
-              <span id="scan-status-text" class="badge badge-warning">Scanner Offline</span>
-              <span id="qr-lock-badge" style="
-                display: inline-flex;
-                align-items: center;
-                gap: 0.3rem;
-                padding: 0.2rem 0.6rem;
-                border-radius: 999px;
-                font-size: 0.72rem;
-                font-weight: 600;
-                background: rgba(148,163,184,0.1);
-                color: var(--text-secondary);
-                border: 1px solid var(--border-color);
-                white-space: nowrap;
-                transition: all 0.3s ease;
-              ">⬜ No QR detected</span>
+            <div class="panel-header" style="flex-wrap: wrap; gap: 0.5rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <h2 class="panel-title">Scanner Output</h2>
+                <button id="btn-quick-manual-output" type="button" class="btn btn-secondary" style="font-size: 0.72rem; padding: 0.25rem 0.6rem; border-color: rgba(99, 102, 241, 0.4); color: var(--text-primary); font-weight: 600; display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                  Manual Entry
+                </button>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span id="scan-status-text" class="badge badge-warning">Scanner Offline</span>
+                <span id="qr-lock-badge" style="
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 0.3rem;
+                  padding: 0.2rem 0.6rem;
+                  border-radius: 999px;
+                  font-size: 0.72rem;
+                  font-weight: 600;
+                  background: rgba(148,163,184,0.1);
+                  color: var(--text-secondary);
+                  border: 1px solid var(--border-color);
+                  white-space: nowrap;
+                  transition: all 0.3s ease;
+                ">⬜ No QR detected</span>
+              </div>
             </div>
             
             <div id="scanner-stats-container" style="display: none; flex-direction: column; gap: 1rem;">
@@ -251,6 +263,10 @@
             <div id="scanner-placeholder" class="empty-state">
               <div class="empty-icon">📷</div>
               <p class="empty-text">Start the camera and hold a completed bubble sheet up to the scanner target to read grades.</p>
+              <button id="btn-scanner-empty-manual" type="button" class="btn btn-secondary" style="margin-top: 0.85rem; font-size: 0.82rem; padding: 0.5rem 1rem; border-color: rgba(99, 102, 241, 0.35); background: rgba(99, 102, 241, 0.08); display: inline-flex; align-items: center; gap: 0.45rem; color: var(--text-primary); cursor: pointer; border-radius: var(--radius-sm);">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+                Did a student not bubble their sheet? Enter Grade Manually
+              </button>
             </div>
           </div>
 
@@ -336,7 +352,11 @@
         <div class="panel-header">
           <h2 class="panel-title">Grades Directory</h2>
           
-          <div class="btn-group">
+          <div class="btn-group" style="flex-wrap: wrap;">
+            <button id="btn-grades-manual-entry" type="button" class="btn btn-secondary" style="margin-bottom: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; border-color: rgba(99, 102, 241, 0.4);">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+              Add Manual Grade
+            </button>
             <label for="btn-upload-roster" class="btn btn-secondary" style="margin-bottom: 0; cursor: pointer;">
               <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
               Upload Roster
@@ -406,6 +426,97 @@
         </div>
       </form>
     </div>
+  </div>
+
+  <!-- Manual Grade Entry Modal (for students who did not bubble in sheet) -->
+  <div id="dialog-manual-grade" class="dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="dialog-manual-title">
+    <div class="dialog-content" style="max-width: 540px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; gap: 0.75rem; flex-wrap: wrap;">
+        <div>
+          <h3 id="dialog-manual-title" class="panel-title" style="margin-bottom: 0.25rem; font-size: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span>✏️ Manual Grade Entry</span>
+          </h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary);">
+            For students who completed on paper without bubbling or need a score override.
+          </p>
+        </div>
+        <span id="manual-assignment-badge" style="padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; background: rgba(99, 102, 241, 0.15); color: var(--accent-primary); border: 1px solid rgba(99, 102, 241, 0.3); white-space: nowrap;">
+          Quiz 1 (Max: 100)
+        </span>
+      </div>
+
+      <form id="manual-grade-form">
+        <!-- Roster Student Picker (Dropdown) -->
+        <div class="form-group" id="manual-roster-group" style="margin-bottom: 1rem;">
+          <label for="manual-student-select" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>Select Student from Roster</span>
+            <span id="manual-ungraded-count" style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 600;"></span>
+          </label>
+          <select id="manual-student-select" style="min-height: 42px; width: 100%;">
+            <option value="">-- Select Student (or enter ID below) --</option>
+          </select>
+        </div>
+
+        <!-- Student ID & Name Inputs -->
+        <div class="grid-2" style="gap: 1rem; margin-bottom: 1rem;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="manual-student-id">Student ID</label>
+            <input type="text" id="manual-student-id" placeholder="e.g. 123456" pattern="\d{3,10}" maxlength="10" required style="font-family: 'JetBrains Mono', monospace; font-size: 1.05rem;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="manual-student-name">Student Name</label>
+            <input type="text" id="manual-student-name" placeholder="Auto-fills from roster or type name">
+          </div>
+        </div>
+
+        <!-- Score Input Card -->
+        <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <label for="manual-score" id="label-manual-score" style="margin-bottom: 0; font-weight: 600; color: var(--text-primary);">
+              Grade Score (0 - 100)
+            </label>
+            <span id="manual-score-percent-badge" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700; color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); padding: 0.2rem 0.55rem; border-radius: var(--radius-sm); border: 1px solid rgba(16, 185, 129, 0.2);">
+              0%
+            </span>
+          </div>
+          
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <input type="number" id="manual-score" min="0" max="100" step="1" required placeholder="0" style="flex: 1; font-size: 1.4rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; padding: 0.5rem 0.75rem; text-align: center; color: var(--accent-emerald);">
+            <span id="manual-max-score-display" style="font-size: 1.2rem; font-weight: 700; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; white-space: nowrap;">
+              / 100
+            </span>
+          </div>
+
+          <!-- Quick Percentage Score Presets -->
+          <div style="display: flex; gap: 0.4rem; margin-top: 0.75rem; flex-wrap: wrap;">
+            <button type="button" class="btn-preset-score" data-pct="1.0">100%</button>
+            <button type="button" class="btn-preset-score" data-pct="0.9">90%</button>
+            <button type="button" class="btn-preset-score" data-pct="0.8">80%</button>
+            <button type="button" class="btn-preset-score" data-pct="0.7">70%</button>
+            <button type="button" class="btn-preset-score" data-pct="0.5">50%</button>
+            <button type="button" class="btn-preset-score" data-pct="0">0% (Missing)</button>
+          </div>
+        </div>
+
+        <!-- Warning if already graded -->
+        <div id="manual-existing-warning" style="display: none; margin-bottom: 1rem; padding: 0.6rem 0.85rem; border-radius: var(--radius-sm); background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--accent-amber); font-size: 0.78rem;">
+          ⚠️ This student already has a recorded score (<span id="manual-existing-score"></span>). Saving will overwrite their record.
+        </div>
+
+        <div class="dialog-footer" style="justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+          <button type="button" id="btn-close-manual-dialog" class="btn btn-secondary">Cancel</button>
+          <div style="display: flex; gap: 0.75rem;">
+            <button type="button" id="btn-manual-save-another" class="btn btn-secondary" style="border-color: rgba(99, 102, 241, 0.4); color: var(--text-primary); font-weight: 600;">
+              Save & Add Another
+            </button>
+            <button type="submit" id="btn-manual-save" class="btn btn-primary" style="font-weight: 700;">
+              Save Grade
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
   <!-- FOOTER -->
   <footer style="text-align: center; padding: 1.5rem 1rem; border-top: 1px solid var(--border-color); color: var(--text-secondary); font-size: 0.8rem; margin-top: 2rem;">
     <div><strong>The Gradest</strong> — Web-based OMR Sheet Generator & Webcam Scanner</div>
