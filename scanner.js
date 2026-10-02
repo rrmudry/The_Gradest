@@ -10,14 +10,17 @@ class BubbleScanner {
     this.ctx = canvasElement.getContext('2d', { willReadFrequently: true });
     
     this.options = Object.assign({
-      onScanSuccess: null, // callback(studentId, score)
+      onScanSuccess: null,  // callback(studentId, score, qr)
       onStatusChange: null, // callback(statusText, isAligned)
+      onPauseChange: null,  // callback(isPaused)
       sensitivity: 22,      // OMR delta threshold (higher = stricter)
-      maxScore: 100
+      maxScore: 100,
+      autoPauseOnScan: true // Pause automatically after a successful scan
     }, options);
 
     this.stream = null;
     this.isActive = false;
+    this.isPaused = false;
     this.animationFrameId = null;
 
     // Canvas Processing Dimensions
@@ -70,6 +73,9 @@ class BubbleScanner {
     this.stableFrames = 0;
     this.lastScannedId = "";
     this.lastScannedScore = -1;
+    this.lastRecordedId = null;       // Student ID of sheet that was just scanned & saved
+    this.lastRecordedScore = null;    // Score of sheet that was just scanned & saved
+    this.paperAbsentFrames = 0;       // Consecutive frames where no sheet was in frame
     this.scanLockout = 0; // cooldown after a successful scan (in frames)
     this.lastVideoTime = -1; // track last processed video timestamp
     this.lastDiagnostics = null;
@@ -82,6 +88,40 @@ class BubbleScanner {
 
   setSensitivity(val) {
     this.options.sensitivity = parseInt(val) || 28;
+  }
+
+  // Pause OMR scanning (freezes processing while leaving camera live)
+  pause() {
+    this.isPaused = true;
+    if (this.options.onPauseChange) {
+      this.options.onPauseChange(true);
+    }
+    if (this.options.onStatusChange) {
+      this.options.onStatusChange("Scan Paused — Ready for next sheet", true);
+    }
+  }
+
+  // Resume OMR scanning
+  resume() {
+    this.isPaused = false;
+    this.stableFrames = 0;
+    this.scanLockout = 15; // 0.5s grace lockout
+    if (this.options.onPauseChange) {
+      this.options.onPauseChange(false);
+    }
+    if (this.options.onStatusChange) {
+      this.options.onStatusChange("Align bubble sheet", false);
+    }
+  }
+
+  // Toggle Pause/Resume state
+  togglePause() {
+    if (this.isPaused) {
+      this.resume();
+    } else {
+      this.pause();
+    }
+    return this.isPaused;
   }
 
   // Web Audio API Beep
@@ -178,6 +218,11 @@ class BubbleScanner {
   // Stop the scanner stream
   stop() {
     this.isActive = false;
+    this.isPaused = false;
+    this.lastRecordedId = null;
+    this.lastRecordedScore = null;
+    this.paperAbsentFrames = 0;
+
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
@@ -191,6 +236,9 @@ class BubbleScanner {
     this.video.srcObject = null;
     this.ctx.clearRect(0, 0, this.width, this.height);
     
+    if (this.options.onPauseChange) {
+      this.options.onPauseChange(false);
+    }
     if (this.options.onStatusChange) {
       this.options.onStatusChange("Scanner Offline", false);
     }
@@ -199,6 +247,16 @@ class BubbleScanner {
   // Frame processing loop
   tick() {
     if (!this.isActive) return;
+
+    if (this.isPaused) {
+      // While paused, keep rendering the live video feed so the camera stays fluid
+      // and the teacher can position the next sheet, while bypassing OMR compute.
+      if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
+        this.ctx.drawImage(this.video, 0, 0, this.width, this.height);
+      }
+      this.animationFrameId = requestAnimationFrame(() => this.tick());
+      return;
+    }
 
     if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
       if (this.video.currentTime !== this.lastVideoTime) {
@@ -446,6 +504,8 @@ class BubbleScanner {
         angleBL: toDegrees(cosBL),
         angleBR: toDegrees(cosBR)
       };
+
+      this.paperAbsentFrames = 0;
 
       // Draw tracked anchors in green
       this.ctx.strokeStyle = '#10b981';
@@ -763,6 +823,15 @@ class BubbleScanner {
       this.lastDiagnostics.scanSuccess = scanSuccess;
 
       if (scanSuccess) {
+        // Anti-repetition check: If this exact sheet was already recorded and hasn't been removed, DO NOT re-scan
+        if (this.lastRecordedId && studentIdStr === this.lastRecordedId && parsedScoreVal === this.lastRecordedScore) {
+          this.stableFrames = 0;
+          if (this.options.onStatusChange) {
+            this.options.onStatusChange("Paper already recorded — Insert next sheet", true);
+          }
+          return;
+        }
+
         // Stabilize tracking (requires 6 consecutive stable frames ≈ 0.18s)
         if (studentIdStr === this.lastScannedId && parsedScoreVal === this.lastScannedScore) {
           this.stableFrames++;
@@ -777,18 +846,27 @@ class BubbleScanner {
 
             this.playBeep();
             
+            // Mark recorded sheet to lock against repeat scanning of the same paper
+            this.lastRecordedId = studentIdStr;
+            this.lastRecordedScore = parsedScoreVal;
+
             // Trigger callback
             if (this.options.onScanSuccess) {
               this.options.onScanSuccess(studentIdStr, parsedScoreVal, this.lastDetectedQR);
             }
             
-            this.scanLockout = 30; // 1 second cooldown
             this.stableFrames = 0;
             this.lastScannedId = "";
             this.lastScannedScore = -1;
             
-            if (this.options.onStatusChange) {
-              this.options.onStatusChange("Scan saved! Remove paper", true);
+            // Auto-pause after successful scan
+            if (this.options.autoPauseOnScan) {
+              this.pause();
+            } else {
+              this.scanLockout = 60; // 2 second cooldown if continuous scan is selected
+              if (this.options.onStatusChange) {
+                this.options.onStatusChange("Scan saved! Remove paper", true);
+              }
             }
             return;
           } else {
@@ -846,6 +924,13 @@ class BubbleScanner {
     } else {
       // Anchors not found or geometric validation failed
       this.stableFrames = 0;
+      this.paperAbsentFrames = (this.paperAbsentFrames || 0) + 1;
+
+      // When paper is removed for at least 8 frames (~0.25s), clear the recorded paper block
+      if (this.paperAbsentFrames >= 8) {
+        this.lastRecordedId = null;
+        this.lastRecordedScore = null;
+      }
       
       if (this.options.onStatusChange) {
         let msg = "Align bubble sheet";

@@ -68,6 +68,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const txtDiagnostics = document.getElementById('txt-diagnostics');
   const qrLockBadge = document.getElementById('qr-lock-badge');
 
+  // Scanner Pause / Resume UI Elements
+  const btnPauseScan = document.getElementById('btn-pause-scan');
+  const chkPauseOnScan = document.getElementById('chk-pause-on-scan');
+  const pausedOverlay = document.getElementById('scanner-paused-overlay');
+  const pausedStudentName = document.getElementById('paused-student-name');
+  const pausedStudentScore = document.getElementById('paused-student-score');
+  const btnResumeScan = document.getElementById('btn-resume-scan');
+  const chkAutoResume = document.getElementById('chk-auto-resume');
+  const pausedCountdown = document.getElementById('paused-countdown');
+
   // Grades & Export UI elements
   const btnUploadRoster = document.getElementById('btn-upload-roster');
   const btnExportCsv = document.getElementById('btn-export-csv');
@@ -116,27 +126,37 @@ document.addEventListener('DOMContentLoaded', () => {
   const scanner = new BubbleScanner(scanVideo, scanCanvas, {
     sensitivity: state.sensitivity,
     maxScore: state.maxScore,
+    autoPauseOnScan: chkPauseOnScan ? chkPauseOnScan.checked : true,
     onScanSuccess: (studentId, score, assignmentName) => {
       handleSuccessfulScan(studentId, score, assignmentName);
     },
     onStatusChange: (statusText, isAligned) => {
       scanStatusText.textContent = statusText;
-      if (isAligned) {
+      if (scanner.isPaused) {
+        scanStatusText.className = "badge badge-info";
+        scanViewport.classList.remove('aligned');
+        scanViewport.classList.add('paused');
+      } else if (isAligned) {
         scanStatusText.className = "badge badge-success";
         scanViewport.classList.add('aligned');
+        scanViewport.classList.remove('paused');
       } else {
         scanStatusText.className = "badge badge-warning";
         scanViewport.classList.remove('aligned');
+        scanViewport.classList.remove('paused');
       }
+    },
+    onPauseChange: (isPaused) => {
+      handlePauseStateChanged(isPaused);
     },
     onQRChange: (qrValue) => {
       if (qrValue) {
-        qrLockBadge.textContent = `\uD83D\uDD17 ${qrValue}`;
+        qrLockBadge.textContent = `🔗 ${qrValue}`;
         qrLockBadge.style.background = 'rgba(99,102,241,0.15)';
         qrLockBadge.style.color = 'var(--accent-primary)';
         qrLockBadge.style.borderColor = 'rgba(99,102,241,0.4)';
       } else {
-        qrLockBadge.textContent = '\u2B1C No QR detected';
+        qrLockBadge.textContent = '⬜ No QR detected';
         qrLockBadge.style.background = 'rgba(148,163,184,0.1)';
         qrLockBadge.style.color = 'var(--text-secondary)';
         qrLockBadge.style.borderColor = 'var(--border-color)';
@@ -682,6 +702,11 @@ document.addEventListener('DOMContentLoaded', () => {
       btnToggleCamera.textContent = "Stop Scanner";
       btnToggleCamera.className = "btn btn-secondary";
       btnManualScan.disabled = false;
+      if (btnPauseScan) {
+        btnPauseScan.style.display = "inline-flex";
+        btnPauseScan.textContent = "⏸ Pause";
+        btnPauseScan.className = "btn btn-secondary";
+      }
       
       // Clear last scan details
       resetScanOutput();
@@ -693,17 +718,136 @@ document.addEventListener('DOMContentLoaded', () => {
         btnToggleCamera.textContent = "Start Scanner";
         btnToggleCamera.className = "btn btn-primary";
         btnManualScan.disabled = true;
+        if (btnPauseScan) {
+          btnPauseScan.style.display = "none";
+        }
       }
     } else {
       scanner.stop();
       btnToggleCamera.textContent = "Start Scanner";
       btnToggleCamera.className = "btn btn-primary";
       btnManualScan.disabled = true;
+      if (btnPauseScan) {
+        btnPauseScan.style.display = "none";
+      }
+      if (pausedOverlay) {
+        pausedOverlay.style.display = "none";
+      }
+      clearAutoResumeCountdown();
       resetScanOutput();
     }
   }
 
   btnToggleCamera.addEventListener('click', () => toggleScanner());
+
+  // Handle Pause/Resume UI updates
+  function handlePauseStateChanged(isPaused) {
+    if (isPaused) {
+      if (pausedOverlay) pausedOverlay.style.display = 'flex';
+      scanViewport.classList.add('paused');
+      if (btnPauseScan) {
+        btnPauseScan.style.display = 'inline-flex';
+        btnPauseScan.textContent = '▶ Resume (Space)';
+        btnPauseScan.className = 'btn btn-success';
+      }
+
+      if (chkAutoResume && chkAutoResume.checked) {
+        startAutoResumeCountdown(2);
+      }
+    } else {
+      clearAutoResumeCountdown();
+      if (pausedOverlay) pausedOverlay.style.display = 'none';
+      scanViewport.classList.remove('paused');
+      if (btnPauseScan) {
+        btnPauseScan.style.display = 'inline-flex';
+        btnPauseScan.textContent = '⏸ Pause';
+        btnPauseScan.className = 'btn btn-secondary';
+      }
+    }
+  }
+
+  function resumeScanning() {
+    clearAutoResumeCountdown();
+    if (scanner.isActive && scanner.isPaused) {
+      scanner.resume();
+    }
+  }
+
+  let autoResumeInterval = null;
+  function startAutoResumeCountdown(seconds = 2) {
+    clearAutoResumeCountdown();
+    let remaining = seconds;
+    if (pausedCountdown) {
+      pausedCountdown.textContent = `Auto-resuming in ${remaining}s...`;
+    }
+
+    autoResumeInterval = setInterval(() => {
+      remaining--;
+      if (remaining > 0) {
+        if (pausedCountdown) pausedCountdown.textContent = `Auto-resuming in ${remaining}s...`;
+      } else {
+        clearAutoResumeCountdown();
+        resumeScanning();
+      }
+    }, 1000);
+  }
+
+  function clearAutoResumeCountdown() {
+    if (autoResumeInterval) {
+      clearInterval(autoResumeInterval);
+      autoResumeInterval = null;
+    }
+    if (pausedCountdown) {
+      pausedCountdown.textContent = '';
+    }
+  }
+
+  // Event Listeners for Pause / Resume
+  if (btnPauseScan) {
+    btnPauseScan.addEventListener('click', () => {
+      scanner.togglePause();
+    });
+  }
+
+  if (btnResumeScan) {
+    btnResumeScan.addEventListener('click', () => {
+      resumeScanning();
+    });
+  }
+
+  if (chkPauseOnScan) {
+    chkPauseOnScan.addEventListener('change', () => {
+      scanner.options.autoPauseOnScan = chkPauseOnScan.checked;
+    });
+  }
+
+  if (chkAutoResume) {
+    chkAutoResume.checked = localStorage.getItem('the_gradest_auto_resume') === 'true';
+    chkAutoResume.addEventListener('change', () => {
+      localStorage.setItem('the_gradest_auto_resume', chkAutoResume.checked.toString());
+      if (chkAutoResume.checked && scanner.isPaused) {
+        startAutoResumeCountdown(2);
+      } else if (!chkAutoResume.checked) {
+        clearAutoResumeCountdown();
+      }
+    });
+  }
+
+  // Spacebar keyboard shortcut to resume or pause scanning
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && state.activeTab === 'scan' && scanner.isActive) {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(activeEl.tagName);
+      if (!isInput) {
+        e.preventDefault();
+        if (scanner.isPaused) {
+          resumeScanning();
+        } else {
+          scanner.pause();
+        }
+      }
+    }
+  });
 
   // Manual Frame Capture click
   btnManualScan.addEventListener('click', () => {
@@ -861,6 +1005,14 @@ document.addEventListener('DOMContentLoaded', () => {
     scannerPlaceholder.style.display = 'none';
     scannerStatsContainer.style.display = 'flex';
     btnSaveScan.disabled = false;
+
+    // Update Paused Overlay details
+    if (pausedStudentName) {
+      pausedStudentName.textContent = studentName !== "Not in roster" ? studentName : `Student ID: ${studentId}`;
+    }
+    if (pausedStudentScore) {
+      pausedStudentScore.textContent = `Score: ${score} / ${state.maxScore} (${percentage}%)`;
+    }
 
     // Automatically trigger save (since stabilization guarantees the paper was held steady)
     saveCurrentScan(studentId, score, studentName, percentage);
