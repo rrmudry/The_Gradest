@@ -16,6 +16,21 @@ document.addEventListener('DOMContentLoaded', () => {
     savedAssignmentName: null // The name under which this assignment was last explicitly saved/loaded
   };
 
+  // Instant hydration of global roster from localStorage cache (if previously fetched)
+  try {
+    const cachedRoster = localStorage.getItem('the_gradest_global_roster');
+    if (cachedRoster) {
+      const parsed = JSON.parse(cachedRoster);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(([id, name]) => {
+          if (id && name) state.globalRoster.set(String(id), name);
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load cached global roster:", e);
+  }
+
   // DOM Elements
   const tabBtnGenerate = document.getElementById('tab-btn-generate');
   const tabBtnScan = document.getElementById('tab-btn-scan');
@@ -923,17 +938,18 @@ document.addEventListener('DOMContentLoaded', () => {
     scanOutPercentage.textContent = "--%";
   }
 
-  // Smart Roster Matching Helper: Handles leading zero padding and queries both local & global Firestore roster
+  // Smart Roster Matching Helper: Handles leading zero padding and queries local, global, and assignment records
   function lookupRosterName(studentId) {
     if (!studentId) return "Not in roster";
+    const strId = String(studentId).trim();
     
     // 1. Check local assignment-specific roster map
-    if (state.roster && state.roster.has(studentId)) return state.roster.get(studentId);
+    if (state.roster && state.roster.has(strId)) return state.roster.get(strId);
     
-    const cleanId = studentId.replace(/^0+/, '');
+    const cleanId = strId.replace(/^0+/, '');
     if (state.roster) {
       for (let [rId, name] of state.roster.entries()) {
-        const cleanRId = rId.replace(/^0+/, '');
+        const cleanRId = String(rId).replace(/^0+/, '');
         if (cleanRId === cleanId && cleanId.length > 0) {
           return name;
         }
@@ -942,14 +958,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Check global Firestore roster collection
     if (state.globalRoster) {
-      if (state.globalRoster.has(studentId)) return state.globalRoster.get(studentId);
+      if (state.globalRoster.has(strId)) return state.globalRoster.get(strId);
       if (state.globalRoster.has(cleanId)) return state.globalRoster.get(cleanId);
+      const paddedId = cleanId.padStart(6, '0');
+      if (state.globalRoster.has(paddedId)) return state.globalRoster.get(paddedId);
 
       for (let [rId, name] of state.globalRoster.entries()) {
-        const cleanRId = rId.replace(/^0+/, '');
+        const cleanRId = String(rId).replace(/^0+/, '');
         if (cleanRId === cleanId && cleanId.length > 0) {
           return name;
         }
+      }
+    }
+
+    // 3. Fallback to existing grades recorded for this assignment
+    if (state.grades) {
+      const match = state.grades.find(g => g.id === strId || (g.id && String(g.id).replace(/^0+/, '') === cleanId));
+      if (match && match.name && match.name !== "Not in roster" && match.name !== "Unknown Student") {
+        return match.name;
       }
     }
     
@@ -1286,6 +1312,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function populateManualRosterSelect() {
     if (!manualStudentSelect) return;
+    const currentVal = manualStudentSelect.value;
     manualStudentSelect.innerHTML = '<option value="">-- Select Student (or enter ID below) --</option>';
 
     const studentMap = new Map();
@@ -1303,6 +1330,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
+    // 3. Existing graded records in this assignment (with known names)
+    if (state.grades) {
+      state.grades.forEach(g => {
+        if (g.id && g.name && g.name !== 'Not in roster' && g.name !== 'Unknown Student' && !studentMap.has(String(g.id))) {
+          studentMap.set(String(g.id), g.name);
+        }
+      });
+    }
 
     const sorted = Array.from(studentMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
 
@@ -1310,7 +1345,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const totalStudents = sorted.length;
 
     sorted.forEach(([id, name]) => {
-      const existing = state.grades.find(g => g.id === id || (g.id && g.id.replace(/^0+/, '') === id.replace(/^0+/, '')));
+      const existing = state.grades.find(g => g.id === id || (g.id && String(g.id).replace(/^0+/, '') === String(id).replace(/^0+/, '')));
       const opt = document.createElement('option');
       opt.value = id;
       opt.dataset.name = name;
@@ -1325,6 +1360,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       manualStudentSelect.appendChild(opt);
     });
+
+    if (currentVal && manualStudentSelect.querySelector(`option[value="${currentVal}"]`)) {
+      manualStudentSelect.value = currentVal;
+    }
 
     if (manualUngradedCount) {
       if (totalStudents > 0) {
@@ -2068,16 +2107,23 @@ document.addEventListener('DOMContentLoaded', () => {
         rosterSnap.forEach(doc => {
           const data = doc.data();
           const sId = doc.id || data.student_id;
-          const sName = data.name || data.student_name || (data.first_name ? `${data.first_name} ${data.last_name}` : null);
+          const sName = data.full_name || data.name || data.student_name || (data.first_name ? `${data.first_name} ${data.last_name || ''}`.trim() : null);
           if (sId && sName) {
             let cleanId = String(sId).trim();
             if (cleanId.length > 0 && cleanId.length < 6 && !isNaN(parseInt(cleanId))) {
               cleanId = cleanId.padStart(6, '0');
             }
             state.globalRoster.set(cleanId, sName);
-            state.globalRoster.set(cleanId.replace(/^0+/, ''), sName);
           }
         });
+
+        // Persist to localStorage for instant startup next time
+        try {
+          localStorage.setItem('the_gradest_global_roster', JSON.stringify(Array.from(state.globalRoster.entries())));
+        } catch (e) {}
+
+        // Always re-populate the manual roster select dropdown in real-time
+        populateManualRosterSelect();
 
         // Automatically update any existing scanned records currently marked "No Roster Match"
         let remapped = false;
