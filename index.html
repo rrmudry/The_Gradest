@@ -482,10 +482,13 @@
       <form id="manual-grade-form">
         <!-- Roster Student Picker (Dropdown) -->
         <div class="form-group" id="manual-roster-group" style="margin-bottom: 1rem;">
-          <label for="manual-student-select" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>Select Student from Roster</span>
-            <span id="manual-ungraded-count" style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 600;"></span>
-          </label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+            <label for="manual-student-select" style="margin-bottom: 0; font-weight: 600;">Select Student from Roster</label>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span id="manual-ungraded-count" style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 600;"></span>
+              <button type="button" id="btn-toggle-roster-filter" class="btn btn-secondary" style="padding: 0.15rem 0.55rem; font-size: 0.72rem; border-radius: 999px;">Show Ungraded Only</button>
+            </div>
+          </div>
           <select id="manual-student-select" style="min-height: 42px; width: 100%;">
             <option value="">-- Select Student (or enter ID below) --</option>
           </select>
@@ -668,7 +671,7 @@
   </script>
 
   <!-- Include App & Scanner scripts -->
-  <script src="scanner.js?v=2.3"></script>
-  <script src="app.js?v=2.3"></script>
+  <script src="scanner.js?v=2.4"></script>
+  <script src="app.js?v=2.4"></script>
 </body>
 </html>

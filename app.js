@@ -7,33 +7,68 @@ document.addEventListener('DOMContentLoaded', () => {
   function normalizeRosterToMap(rawRoster) {
     const map = new Map();
     if (!rawRoster) return map;
-    if (rawRoster instanceof Map) return new Map(rawRoster);
+    function addEntry(id, name) {
+      if (!id || !name) return;
+      const sId = String(id).trim();
+      const sName = String(name).trim();
+      if (sId && sName && sId !== 'undefined' && sName !== 'undefined' && sId !== 'null' && sName !== 'null') {
+        map.set(sId, sName);
+      }
+    }
+    if (rawRoster instanceof Map) {
+      rawRoster.forEach((name, id) => addEntry(id, name));
+      return map;
+    }
     if (Array.isArray(rawRoster)) {
       rawRoster.forEach(item => {
         if (!item) return;
         if (Array.isArray(item) && item.length >= 2) {
-          map.set(String(item[0]).trim(), String(item[1]).trim());
+          addEntry(item[0], item[1]);
         } else if (typeof item === "object") {
-          const id = item.id || item.student_id;
-          const name = item.name || item.student_name || item.full_name;
-          if (id && name) {
-            map.set(String(id).trim(), String(name).trim());
-          }
+          addEntry(item.id || item.student_id, item.name || item.student_name || item.full_name);
         }
       });
       return map;
     }
     if (typeof rawRoster === "object") {
       Object.keys(rawRoster).forEach(id => {
-        const name = rawRoster[id];
-        if (id && name) {
-          map.set(String(id).trim(), String(name).trim());
-        }
+        addEntry(id, rawRoster[id]);
       });
       return map;
     }
     return map;
   }
+
+  // Returns guaranteed clean array of { id, name } objects with no undefined values
+  function getSafeRosterArray() {
+    let source = state.roster;
+    if (!source || source.size === 0) source = state.globalRoster;
+    if (!source || source.size === 0) source = new Map(DEFAULT_GLOBAL_ROSTER);
+
+    const result = [];
+    const seen = new Set();
+    source.forEach((name, id) => {
+      const sId = String(id).trim();
+      const sName = String(name).trim();
+      if (sId && sName && sId !== 'undefined' && sName !== 'undefined' && !seen.has(sId)) {
+        seen.add(sId);
+        result.push({ id: sId, name: sName });
+      }
+    });
+
+    if (result.length === 0 && DEFAULT_GLOBAL_ROSTER) {
+      DEFAULT_GLOBAL_ROSTER.forEach(([id, name]) => {
+        const sId = String(id).trim();
+        const sName = String(name).trim();
+        if (!seen.has(sId)) {
+          seen.add(sId);
+          result.push({ id: sId, name: sName });
+        }
+      });
+    }
+    return result;
+  }
+
   // Global State
   const state = {
     assignmentName: "Quiz 1",
@@ -46,7 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedCameraId: null,
     sensitivity: 22,
     editingGradeIndex: null,
-    savedAssignmentName: null
+    savedAssignmentName: null,
+    manualRosterFilter: 'all' // 'all' or 'ungraded'
   };
 
   // Instant hydration from localStorage cache if newer
@@ -168,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const manualScorePercentBadge = document.getElementById('manual-score-percent-badge');
   const manualAssignmentBadge = document.getElementById('manual-assignment-badge');
   const manualUngradedCount = document.getElementById('manual-ungraded-count');
+  const btnToggleRosterFilter = document.getElementById('btn-toggle-roster-filter');
   const manualExistingWarning = document.getElementById('manual-existing-warning');
   const manualExistingScore = document.getElementById('manual-existing-score');
   const btnCloseManualDialog = document.getElementById('btn-close-manual-dialog');
@@ -1359,22 +1396,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Assignment-specific roster
     if (state.roster) {
       for (let [id, name] of state.roster.entries()) {
-        if (id && name) studentMap.set(String(id), name);
+        const sId = String(id).trim();
+        const sName = String(name).trim();
+        if (sId && sName && sId !== 'undefined' && sName !== 'undefined') {
+          studentMap.set(sId, sName);
+        }
       }
     }
     // 2. Global Firestore roster
     if (state.globalRoster) {
       for (let [id, name] of state.globalRoster.entries()) {
-        if (id && name && !studentMap.has(String(id))) {
-          studentMap.set(String(id), name);
+        const sId = String(id).trim();
+        const sName = String(name).trim();
+        if (sId && sName && sId !== 'undefined' && sName !== 'undefined' && !studentMap.has(sId)) {
+          studentMap.set(sId, sName);
         }
       }
     }
-    // 3. Existing graded records in this assignment (with known names)
+    // 3. Bundled master roster fallback (guarantees all 185 students always available)
+    if (typeof DEFAULT_GLOBAL_ROSTER !== 'undefined' && Array.isArray(DEFAULT_GLOBAL_ROSTER)) {
+      DEFAULT_GLOBAL_ROSTER.forEach(([id, name]) => {
+        const sId = String(id).trim();
+        const sName = String(name).trim();
+        if (sId && sName && !studentMap.has(sId)) {
+          studentMap.set(sId, sName);
+        }
+      });
+    }
+    // 4. Existing graded records in this assignment (with known names)
     if (state.grades) {
       state.grades.forEach(g => {
-        if (g.id && g.name && g.name !== 'Not in roster' && g.name !== 'Unknown Student' && !studentMap.has(String(g.id))) {
-          studentMap.set(String(g.id), g.name);
+        const sId = String(g.id).trim();
+        const sName = String(g.name).trim();
+        if (sId && sName && sName !== 'Not in roster' && sName !== 'Unknown Student' && !studentMap.has(sId)) {
+          studentMap.set(sId, sName);
         }
       });
     }
@@ -1383,6 +1438,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let gradedCount = 0;
     const totalStudents = sorted.length;
+    const ungradedOptions = [];
+    const gradedOptions = [];
 
     sorted.forEach(([id, name]) => {
       const existing = state.grades.find(g => g.id === id || (g.id && String(g.id).replace(/^0+/, '') === String(id).replace(/^0+/, '')));
@@ -1391,15 +1448,40 @@ document.addEventListener('DOMContentLoaded', () => {
       opt.dataset.name = name;
       if (existing) {
         gradedCount++;
-        opt.textContent = `${name} (${id}) — ✓ Graded: ${existing.score}/${state.maxScore} (${existing.percentage}%)`;
+        opt.textContent = `${name} (${id}) — Graded: ${existing.score}/${state.maxScore} (${existing.percentage}%)`;
         opt.dataset.existingScore = existing.score;
         opt.dataset.isGraded = "true";
+        gradedOptions.push(opt);
       } else {
-        opt.textContent = `${name} (${id}) — [Not yet graded]`;
+        opt.textContent = `${name} (${id})`;
         opt.dataset.isGraded = "false";
+        ungradedOptions.push(opt);
       }
-      manualStudentSelect.appendChild(opt);
     });
+
+    const filterMode = state.manualRosterFilter || 'all';
+
+    if (filterMode === 'ungraded') {
+      const optGroupUngraded = document.createElement('optgroup');
+      optGroupUngraded.label = `⏳ Ungraded Students (${ungradedOptions.length})`;
+      ungradedOptions.forEach(opt => optGroupUngraded.appendChild(opt));
+      manualStudentSelect.appendChild(optGroupUngraded);
+    } else {
+      if (ungradedOptions.length > 0 && gradedOptions.length > 0) {
+        const optGroupUngraded = document.createElement('optgroup');
+        optGroupUngraded.label = `⏳ Ungraded Students (${ungradedOptions.length})`;
+        ungradedOptions.forEach(opt => optGroupUngraded.appendChild(opt));
+        manualStudentSelect.appendChild(optGroupUngraded);
+
+        const optGroupGraded = document.createElement('optgroup');
+        optGroupGraded.label = `✓ Already Graded (${gradedOptions.length})`;
+        gradedOptions.forEach(opt => optGroupGraded.appendChild(opt));
+        manualStudentSelect.appendChild(optGroupGraded);
+      } else {
+        ungradedOptions.forEach(opt => manualStudentSelect.appendChild(opt));
+        gradedOptions.forEach(opt => manualStudentSelect.appendChild(opt));
+      }
+    }
 
     if (currentVal && manualStudentSelect.querySelector(`option[value="${currentVal}"]`)) {
       manualStudentSelect.value = currentVal;
@@ -1413,6 +1495,20 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         manualUngradedCount.textContent = 'No roster loaded';
         manualUngradedCount.style.color = 'var(--text-muted)';
+      }
+    }
+
+    if (btnToggleRosterFilter) {
+      if (filterMode === 'ungraded') {
+        btnToggleRosterFilter.textContent = 'Show All Students';
+        btnToggleRosterFilter.classList.add('active');
+        btnToggleRosterFilter.style.background = 'rgba(99, 102, 241, 0.2)';
+        btnToggleRosterFilter.style.color = 'var(--accent-primary)';
+      } else {
+        btnToggleRosterFilter.textContent = 'Show Ungraded Only';
+        btnToggleRosterFilter.classList.remove('active');
+        btnToggleRosterFilter.style.background = '';
+        btnToggleRosterFilter.style.color = '';
       }
     }
   }
@@ -1631,6 +1727,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnCloseManualDialog) {
     btnCloseManualDialog.addEventListener('click', closeManualGradeDialog);
+  }
+  if (btnToggleRosterFilter) {
+    btnToggleRosterFilter.addEventListener('click', () => {
+      state.manualRosterFilter = state.manualRosterFilter === 'ungraded' ? 'all' : 'ungraded';
+      populateManualRosterSelect();
+    });
   }
 
   // Close dialog on backdrop click
@@ -2043,7 +2145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.assignmentDetails = "";
     state.maxScore = 100;
     state.grades = [];
-    state.roster.clear();
+    state.roster = new Map(state.globalRoster && state.globalRoster.size > 0 ? state.globalRoster : DEFAULT_GLOBAL_ROSTER);
     state.sensitivity = 22;
     state.savedAssignmentName = null;
     localStorage.removeItem('the_gradest_active_assignment_name');
@@ -2060,6 +2162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatsDashboard();
     renderRecentScansList();
     updateAssignmentsDropdown();
+    populateManualRosterSelect();
 
     inputAssignName.focus();
     showToast("New Assignment Created", "Settings cleared. Enter your new assignment details.", "info");
@@ -2243,7 +2346,7 @@ document.addEventListener('DOMContentLoaded', () => {
       assignmentDetails: data.assignmentDetails || "",
       maxScore: data.maxScore,
       grades: data.grades || [],
-      roster: Array.from(normalizeRosterToMap(data.roster || state.globalRoster).entries()).map(([id, rName]) => ({ id: String(id), name: String(rName) })),
+      roster: (data && data.roster && data.roster.length > 0) ? Array.from(normalizeRosterToMap(data.roster).entries()).map(([id, rName]) => ({ id: String(id), name: String(rName) })) : getSafeRosterArray(),
       sensitivity: data.sensitivity,
       userEmail: email.toLowerCase(),
       isProctorAssessment: false,
@@ -2293,7 +2396,7 @@ document.addEventListener('DOMContentLoaded', () => {
       assignmentDetails: state.assignmentDetails,
       maxScore: state.maxScore,
       grades: state.grades,
-      roster: Array.from(((state.roster && state.roster.size > 0) ? state.roster : state.globalRoster).entries()).map(([id, rName]) => ({ id: String(id), name: String(rName) })),
+      roster: getSafeRosterArray(),
       sensitivity: state.sensitivity,
       timestamp: Date.now()
     };
@@ -2326,7 +2429,10 @@ document.addEventListener('DOMContentLoaded', () => {
     state.assignmentDetails = data.assignmentDetails || "";
     state.maxScore = data.maxScore || 100;
     state.grades = data.grades || [];
-    state.roster = new Map(data.roster || []);
+    state.roster = normalizeRosterToMap(data.roster);
+    if (state.roster.size === 0) {
+      state.roster = new Map(state.globalRoster && state.globalRoster.size > 0 ? state.globalRoster : DEFAULT_GLOBAL_ROSTER);
+    }
     state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
     state.savedAssignmentName = name;
     
