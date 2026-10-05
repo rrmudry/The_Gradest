@@ -602,6 +602,7 @@
           document.getElementById("auth-user-email").textContent = email;
         }
 
+        window.currentAuthUserEmail = email;
         if (window.initFirestoreSync) {
           window.initFirestoreSync(email);
         }

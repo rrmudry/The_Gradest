@@ -1960,18 +1960,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!window.firebase || !firebase.firestore) return;
     try {
       firestoreDb = firebase.firestore();
-      currentUserEmail = userEmail.toLowerCase();
+      currentUserEmail = (userEmail || window.currentAuthUserEmail || (firebase.auth().currentUser && firebase.auth().currentUser.email) || 'rmudry@orangeusd.org').toLowerCase();
 
       if (firestoreUnsubscribe) firestoreUnsubscribe();
 
-      // Listen to real-time updates for assignments belonging to the authorized user
+      // Listen to real-time updates for assignments belonging to the authorized teacher
+      const authorizedEmails = ['rmudry@orangeusd.org', 'ryan.mudry@gmail.com', 'ryanmudry@gmail.com'];
       firestoreUnsubscribe = firestoreDb
         .collection('gradest_assignments')
-        .where('userEmail', '==', currentUserEmail)
         .onSnapshot((snapshot) => {
           const remoteAssignments = {};
           snapshot.forEach(doc => {
-            remoteAssignments[doc.id] = doc.data();
+            const data = doc.data();
+            const uEmail = (data.userEmail || '').toLowerCase();
+            const isAuthorized = !uEmail ||
+                                 uEmail === 'teacher' ||
+                                 uEmail === currentUserEmail ||
+                                 authorizedEmails.includes(uEmail) ||
+                                 data.sourceType === 'the_gradest';
+            if (isAuthorized) {
+              remoteAssignments[doc.id] = data;
+            }
           });
 
           const localAssignments = getStoredAssignments();
@@ -2050,8 +2059,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!firestoreDb) return;
 
     let email = currentUserEmail;
+    if (!email && window.currentAuthUserEmail) {
+      email = window.currentAuthUserEmail;
+    }
     if (!email && window.firebase && firebase.auth && firebase.auth().currentUser) {
       email = firebase.auth().currentUser.email;
+    }
+    if (!email) {
+      email = 'rmudry@orangeusd.org';
     }
 
     const assignments = getStoredAssignments();
@@ -2065,7 +2080,7 @@ document.addEventListener('DOMContentLoaded', () => {
       grades: data.grades || [],
       roster: data.roster || [],
       sensitivity: data.sensitivity,
-      userEmail: (email || 'teacher').toLowerCase(),
+      userEmail: email.toLowerCase(),
       isProctorAssessment: false,
       sourceType: 'the_gradest',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2282,5 +2297,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (listOnStartup[activeNameOnStartup]) {
       loadAssignment(activeNameOnStartup);
     }
+  }
+
+  // Connect Firestore sync if auth state was already resolved before app.js loaded
+  if (window.currentAuthUserEmail && window.initFirestoreSync) {
+    window.initFirestoreSync(window.currentAuthUserEmail);
+  } else if (window.firebase && firebase.auth && firebase.auth().currentUser && firebase.auth().currentUser.email) {
+    window.initFirestoreSync(firebase.auth().currentUser.email);
   }
 });
