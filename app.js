@@ -1979,7 +1979,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                  authorizedEmails.includes(uEmail) ||
                                  data.sourceType === 'the_gradest';
             if (isAuthorized) {
-              remoteAssignments[doc.id] = data;
+              const realName = data.assignmentName || decodeURIComponent(doc.id);
+              remoteAssignments[realName] = data;
             }
           });
 
@@ -2008,6 +2009,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, (err) => {
           console.error("Firestore real-time sync error:", err);
         });
+
+      // Automatically push any unsynced local assignments (e.g. created offline or with special characters)
+      syncAllLocalAssignmentsToCloud();
 
       // Listen to real-time updates from global Firestore 'roster' collection
       firestoreDb.collection('roster').onSnapshot((rosterSnap) => {
@@ -2051,6 +2055,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  function toFirestoreDocId(name) {
+    if (!name) return '';
+    return encodeURIComponent(name).replace(/\./g, '%2E');
+  }
+
+  function syncAllLocalAssignmentsToCloud() {
+    const local = getStoredAssignments();
+    Object.keys(local).forEach(name => {
+      if (name && !DEFAULT_ASSIGNMENTS[name]) {
+        syncAssignmentToFirestore(name);
+      }
+    });
+  }
+
   function syncAssignmentToFirestore(name) {
     if (!name) return;
     if (!firestoreDb && window.firebase && firebase.firestore) {
@@ -2074,7 +2092,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!data) return;
 
     const payload = {
-      assignmentName: data.assignmentName,
+      assignmentName: data.assignmentName || name,
       assignmentDetails: data.assignmentDetails || "",
       maxScore: data.maxScore,
       grades: data.grades || [],
@@ -2086,8 +2104,9 @@ document.addEventListener('DOMContentLoaded', () => {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    firestoreDb.collection('gradest_assignments').doc(name).set(payload, { merge: true }).then(() => {
-      console.log(`Successfully synced assignment "${name}" grades to Cloud Firestore.`);
+    const docId = toFirestoreDocId(name);
+    firestoreDb.collection('gradest_assignments').doc(docId).set(payload, { merge: true }).then(() => {
+      console.log(`Successfully synced assignment "${name}" (docId: ${docId}) grades to Cloud Firestore.`);
     }).catch(err => {
       console.error("Firestore write failed:", err);
     });
@@ -2099,10 +2118,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (!firestoreDb) return;
     if (oldName && oldName !== name) {
-      firestoreDb.collection('gradest_assignments').doc(oldName).delete().catch(err => console.error("Firestore delete old doc failed:", err));
+      firestoreDb.collection('gradest_assignments').doc(toFirestoreDocId(oldName)).delete().catch(err => console.error("Firestore delete old doc failed:", err));
     }
     if (name) {
-      firestoreDb.collection('gradest_assignments').doc(name).delete().catch(err => console.error("Firestore delete doc failed:", err));
+      firestoreDb.collection('gradest_assignments').doc(toFirestoreDocId(name)).delete().catch(err => console.error("Firestore delete doc failed:", err));
     }
   }
 
