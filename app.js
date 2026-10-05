@@ -1,29 +1,66 @@
 // The Gradest - Main Application Script
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Single Source of Truth: Pre-bundled 185 Student Roster
+  const DEFAULT_GLOBAL_ROSTER = [["445136","Abraham Maldonado Hidalgo"],["445617","Adilene Sanchez"],["393281","Adrian Escobedo"],["409346","Aidan Atmaja"],["398816","Aiden Gutierrez-Torres"],["385835","Airan Morales"],["392884","Ajani Rolon"],["412079","Alan Chacon Nava"],["438651","Aleah Perez"],["392765","Alexander Huk"],["395643","Alexander Rosas"],["399184","Alexandria Resendiz"],["416764","Alexis Vasquez"],["427203","Alissa Bran"],["392908","Allison Menjivar"],["392151","Ameyalli Solis"],["387460","Amie Prum"],["445289","Anahi Naranjo"],["412788","Andrea Lozada"],["392272","Andrew Jarquin"],["414032","Angeleduardo Martinez"],["434376","Anh Minh Tran Ngoc"],["431061","Ann Marie Rojas Sanchez"],["389113","Anthony Baez"],["396327","Anthony Cruz Cruz"],["392141","Anthony Magana"],["430265","Anthony Padua"],["395193","Anthony Quinones Sanchez"],["395659","Anthony Reyes"],["397817","Antonio Herrera"],["430124","Anya Segura"],["412208","Arely Acevedo Saavedra"],["445064","Arianna Ortuno-Ferreyra"],["396517","Arturo Palos"],["441511","Arvin Yousefi Kashi"],["392121","Ashley Arcos"],["439941","Audrey Vargas"],["398861","Azaleah Buenaflor"],["389876","Brandon Cervantes"],["434043","Brandon Lopez"],["398089","Brianna Lozada"],["437688","Britany Pamela Cruz Ramirez"],["396259","Bryan Garcia Avalos"],["396686","Bryssa Diaz"],["418701","Camila Ortega"],["445086","Carley O'Connor"],["438064","Christian Jimenez"],["427995","Christian Ortiz Flores"],["399074","Cinthia Vasquez"],["398953","Daisy Rodriguez"],["395305","Dalia Paulino Marcelo"],["393254","Damien Contreras"],["441449","Daniel Sanchez"],["431303","Daniela Rivera Carbajal"],["392421","Dantae Valdez"],["396616","Dariana De La O"],["445646","David Banuelos Ulloa"],["395642","David Flores Lopez"],["393199","Delilah Navarro"],["396854","Destiny Carrasco"],["383842","Dylan Nguyen"],["391470","Dylan Rios"],["426603","Dylan Stone"],["430039","Eduardo Romero"],["444759","Edward Miller"],["402748","Edwin Lopez"],["392861","Elisabeth Tirado"],["411432","Elizabeth Gonzalez"],["434216","Elizabeth Stewart"],["442689","Elvin Mills"],["391884","Emely Hernandez Escobar"],["426089","Emiliano Millan Davila"],["435778","Emily Miranda Silio"],["397454","Emily Vazquez Martinez"],["392979","Erica Mendoza"],["438399","Erick Ayala"],["394224","Erick Cornejo"],["395496","Ethan Guzman"],["413894","Faith Rodriguez"],["438275","Fernando Petronilo"],["420924","Finley De Vaul"],["426281","Francisco Lopez"],["392800","Gabriela Infante"],["397387","Giovanni Castillo Santos"],["398566","Giovanni Sotelo"],["443151","Guadalupe Carrera"],["395719","Guadalupe Porron"],["397470","Hellen Mendez"],["429675","Holly Dovalina"],["386553","Isaac Hernandez"],["398493","Isaac Munoz"],["397334","Isaiah Martinez"],["396076","Ivan Lopez Munoz"],["416963","Jackson Graham"],["386905","Jacob Hernandez"],["393609","Jacob Nava"],["393031","Jacob Sanchez"],["425747","Jacqueline Cabrera"],["397827","Jaslynne Leon"],["389976","Jaylene Ibanez"],["391215","Jazmin Arteaga"],["396323","Jazmin Panzo Garcia"],["438589","Jeremiah Lopez Menjivar"],["392787","Jessica Ramos"],["392527","Jesus Garcia"],["387528","Jesus Vargas-Tellez"],["430156","Jimena Herrera Morales"],["393214","Joel Ceron"],["393282","Jordan Chambers"],["391856","Jose Angel Fernandez"],["397139","Jose Guzman"],["398199","Joseph Guillen"],["395950","Joshua Cruz"],["393188","Joshua Escobar"],["391960","Joshua Sheldon"],["399020","Joshua Soberano"],["396166","Josiah Cook"],["395713","Jossue Marin Valverde"],["387436","Josue Torres"],["393194","Judy Macias"],["392315","Karina Nugroho"],["394532","Karina Palacio"],["393485","Kaylee Avalos Carmona"],["417149","Kaylee Fabian Martinez"],["395529","Kenia Palacio"],["395763","Kevin Alvarado"],["442499","Kevin Cervantes Espinoza"],["389920","Kevin Velazquez"],["397380","Kimberly Bonola-Pinto"],["391727","Kimberly Vargas"],["422782","Krisallyson Cortez"],["403862","Lennox Raygoza"],["390808","Lesslie Enriquez Rodriguez"],["445338","LEVI Granado"],["395509","Makenzy Ramirez"],["397870","Marco Figueroa"],["391248","Mariah Costa"],["441768","Marleny Vazquez Ibarra"],["392998","Matthew Rodriguez Garcia"],["437731","Matthew Vicente Gomez"],["398186","Melanie Garcia"],["396618","Mia Gallardo"],["429680","Mia Urdenes"],["391682","Michael Chavez"],["391466","Michael Gutierrez"],["395419","Miguel Alcala Laurean"],["427085","Miguel Angel Juarez Canseco"],["385874","Miguel Cruz"],["392776","Misael Lopez"],["404341","Nathan Quevedo"],["423621","Niah Cadero"],["389975","Nicole Guerrero"],["441745","Noah Ordonez"],["391057","Omar Olivares Benites"],["392126","Oscar Bonifacio"],["403474","Pablo Galicia"],["394196","Rachel Duyen Nguyen"],["393773","Rafael Mejia"],["387527","Randy Valencia Molina"],["393224","Richard Valladolid"],["421804","Ricky Marquez"],["396311","Sabrina Anaya Trinidad"],["397176","Samantha Torres"],["402477","Sebastian Ramirez"],["391714","Sebastian Reynoso Padilla"],["390179","Skyler Almaguer"],["437926","Skyler Cooper"],["393192","Sophia Lopez"],["398745","Sophia Sandoval"],["437440","Starlone Thomas"],["394085","Stella Marquez"],["391219","Steven Barrientos Reyes"],["395490","Tianna Calderon"],["434379","Unique Primero"],["427227","Valentina Gonzalez"],["396976","Valerie Cervantes"],["392837","Valerie Lobato"],["392777","Vanessa Casarez"],["423690","Vanessa Paulino Carrera"],["397367","Viviana Benitez Munoz"],["438294","Wychane Randle"],["426770","Ximena Lopez Alvarado"],["445225","Yaretzy Solis Ruiz"],["427860","Yulisa Corona Corona"],["403767","Zayd Abuebaid"]];
+
+  function normalizeRosterToMap(rawRoster) {
+    const map = new Map();
+    if (!rawRoster) return map;
+    if (rawRoster instanceof Map) return new Map(rawRoster);
+    if (Array.isArray(rawRoster)) {
+      rawRoster.forEach(item => {
+        if (!item) return;
+        if (Array.isArray(item) && item.length >= 2) {
+          map.set(String(item[0]).trim(), String(item[1]).trim());
+        } else if (typeof item === "object") {
+          const id = item.id || item.student_id;
+          const name = item.name || item.student_name || item.full_name;
+          if (id && name) {
+            map.set(String(id).trim(), String(name).trim());
+          }
+        }
+      });
+      return map;
+    }
+    if (typeof rawRoster === "object") {
+      Object.keys(rawRoster).forEach(id => {
+        const name = rawRoster[id];
+        if (id && name) {
+          map.set(String(id).trim(), String(name).trim());
+        }
+      });
+      return map;
+    }
+    return map;
+  }
   // Global State
   const state = {
     assignmentName: "Quiz 1",
     assignmentDetails: "Chapter 1-3 Review. Fill in bubbles completely.",
     maxScore: 100,
     grades: [], // Array of { id, score, name, percentage, status, timestamp }
-    roster: new Map(), // studentId (string) -> studentName (string) (Assignment specific)
-    globalRoster: new Map(), // Global Firestore roster map
+    roster: new Map(DEFAULT_GLOBAL_ROSTER), // Pre-seeded with 185 student roster
+    globalRoster: new Map(DEFAULT_GLOBAL_ROSTER), // Always pre-seeded so roster is never empty
     activeTab: 'generate',
     selectedCameraId: null,
     sensitivity: 22,
     editingGradeIndex: null,
-    savedAssignmentName: null // The name under which this assignment was last explicitly saved/loaded
+    savedAssignmentName: null
   };
 
-  // Instant hydration of global roster from localStorage cache (if previously fetched)
+  // Instant hydration from localStorage cache if newer
   try {
     const cachedRoster = localStorage.getItem('the_gradest_global_roster');
     if (cachedRoster) {
       const parsed = JSON.parse(cachedRoster);
       if (Array.isArray(parsed)) {
-        parsed.forEach(([id, name]) => {
-          if (id && name) state.globalRoster.set(String(id), name);
+        parsed.forEach(item => {
+          if (Array.isArray(item) && item[0] && item[1]) {
+            state.globalRoster.set(String(item[0]).trim(), String(item[1]).trim());
+          } else if (item && item.id && item.name) {
+            state.globalRoster.set(String(item.id).trim(), String(item.name).trim());
+          }
         });
       }
     }
@@ -997,7 +1034,10 @@ document.addEventListener('DOMContentLoaded', () => {
           state.assignmentDetails = data.assignmentDetails || '';
           state.maxScore = data.maxScore || 100;
           state.grades = data.grades || [];
-          state.roster = new Map(data.roster || []);
+          state.roster = normalizeRosterToMap(data.roster);
+    if (state.roster.size === 0 && state.globalRoster && state.globalRoster.size > 0) {
+      state.roster = new Map(state.globalRoster);
+    }
           state.sensitivity = data.sensitivity !== undefined ? data.sensitivity : 22;
           state.savedAssignmentName = target;
           localStorage.setItem('the_gradest_active_assignment_name', target);
@@ -2088,7 +2128,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (activeName && localAssignments[activeName]) {
               const data = localAssignments[activeName];
               state.grades = data.grades || [];
-              state.roster = new Map(data.roster || []);
+              state.roster = normalizeRosterToMap(data.roster);
+              if (state.roster.size === 0 && state.globalRoster && state.globalRoster.size > 0) {
+                state.roster = new Map(state.globalRoster);
+              }
+              populateManualRosterSelect();
               renderGradesTable();
               updateStatsDashboard();
               renderRecentScansList();
@@ -2102,8 +2146,8 @@ document.addEventListener('DOMContentLoaded', () => {
       syncAllLocalAssignmentsToCloud();
 
       // Listen to real-time updates from global Firestore 'roster' collection
-      firestoreDb.collection('roster').onSnapshot((rosterSnap) => {
-        state.globalRoster.clear();
+      function handleRosterSnapshot(rosterSnap) {
+        if (!rosterSnap || rosterSnap.empty) return;
         rosterSnap.forEach(doc => {
           const data = doc.data();
           const sId = doc.id || data.student_id;
@@ -2142,8 +2186,15 @@ document.addEventListener('DOMContentLoaded', () => {
           renderRecentScansList();
           saveCurrentAssignment(true);
         }
-      }, (err) => {
-        console.error("Firestore roster collection error:", err);
+      }
+
+      // Immediate fetch as backup to onSnapshot
+      firestoreDb.collection('roster').get().then(handleRosterSnapshot).catch(e => {
+        console.warn("Direct roster get failed (using bundled roster):", e);
+      });
+
+      firestoreDb.collection('roster').onSnapshot(handleRosterSnapshot, (err) => {
+        console.warn("Firestore roster onSnapshot error (using bundled roster):", err);
       });
     } catch (e) {
       console.error("Firestore initialization error:", e);
@@ -2192,7 +2243,7 @@ document.addEventListener('DOMContentLoaded', () => {
       assignmentDetails: data.assignmentDetails || "",
       maxScore: data.maxScore,
       grades: data.grades || [],
-      roster: data.roster || [],
+      roster: Array.from(normalizeRosterToMap(data.roster || state.globalRoster).entries()).map(([id, rName]) => ({ id: String(id), name: String(rName) })),
       sensitivity: data.sensitivity,
       userEmail: email.toLowerCase(),
       isProctorAssessment: false,
@@ -2242,7 +2293,7 @@ document.addEventListener('DOMContentLoaded', () => {
       assignmentDetails: state.assignmentDetails,
       maxScore: state.maxScore,
       grades: state.grades,
-      roster: Array.from(state.roster.entries()),
+      roster: Array.from(((state.roster && state.roster.size > 0) ? state.roster : state.globalRoster).entries()).map(([id, rName]) => ({ id: String(id), name: String(rName) })),
       sensitivity: state.sensitivity,
       timestamp: Date.now()
     };
