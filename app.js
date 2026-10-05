@@ -1867,6 +1867,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  function cleanAssignmentName(name, data) {
+    if (data && data.assignmentName) return data.assignmentName;
+    if (!name) return '';
+    try {
+      return decodeURIComponent(name);
+    } catch (e) {
+      return name.replace(/%2F/g, '/').replace(/%20/g, ' ').replace(/%3A/g, ':').replace(/%26/g, '&');
+    }
+  }
+
   function getStoredAssignments() {
     try {
       const data = localStorage.getItem('the_gradest_assignments');
@@ -1874,7 +1884,28 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('the_gradest_assignments', JSON.stringify(DEFAULT_ASSIGNMENTS));
         return DEFAULT_ASSIGNMENTS;
       }
-      return JSON.parse(data);
+      const raw = JSON.parse(data);
+      const cleaned = {};
+      let needsCleanup = false;
+
+      Object.keys(raw).forEach(k => {
+        // Discard temporary test assignments
+        if (k.startsWith('test_slash') || k === '9//2') {
+          needsCleanup = true;
+          return;
+        }
+        const item = raw[k];
+        const cleanName = cleanAssignmentName(k, item);
+        cleaned[cleanName] = item;
+        if (cleanName !== k) {
+          needsCleanup = true;
+        }
+      });
+
+      if (needsCleanup) {
+        localStorage.setItem('the_gradest_assignments', JSON.stringify(cleaned));
+      }
+      return cleaned;
     } catch (e) {
       console.error("Error reading localStorage:", e);
       return {};
@@ -1906,7 +1937,11 @@ document.addEventListener('DOMContentLoaded', () => {
     selectAssignments.innerHTML = noOptionHtml + optionsHtml;
     gradesSelectAssignments.innerHTML = noOptionGradesHtml + optionsHtml;
 
-    const activeName = localStorage.getItem('the_gradest_active_assignment_name') || "";
+    const rawActive = localStorage.getItem('the_gradest_active_assignment_name') || "";
+    const activeName = cleanAssignmentName(rawActive, null);
+    if (activeName !== rawActive) {
+      localStorage.setItem('the_gradest_active_assignment_name', activeName);
+    }
     if (activeName && list[activeName]) {
       selectAssignments.value = activeName;
       gradesSelectAssignments.value = activeName;
@@ -1979,13 +2014,23 @@ document.addEventListener('DOMContentLoaded', () => {
                                  authorizedEmails.includes(uEmail) ||
                                  data.sourceType === 'the_gradest';
             if (isAuthorized) {
-              const realName = data.assignmentName || decodeURIComponent(doc.id);
-              remoteAssignments[realName] = data;
+              const cleanName = cleanAssignmentName(doc.id, data);
+              // Ignore temporary test docs
+              if (cleanName.startsWith('test_slash') || cleanName === '9//2') return;
+              remoteAssignments[cleanName] = data;
             }
           });
 
           const localAssignments = getStoredAssignments();
           let hasChanges = false;
+
+          // Purge any encoded or obsolete keys from localAssignments
+          Object.keys(localAssignments).forEach(localKey => {
+            if (localKey.includes('%20') || localKey.includes('%2F') || localKey.includes('%3A') || localKey.includes('%26') || localKey.startsWith('test_slash') || localKey === '9//2') {
+              delete localAssignments[localKey];
+              hasChanges = true;
+            }
+          });
 
           Object.keys(remoteAssignments).forEach(name => {
             localAssignments[name] = remoteAssignments[name];
@@ -1996,7 +2041,11 @@ document.addEventListener('DOMContentLoaded', () => {
             setStoredAssignments(localAssignments);
             updateAssignmentsDropdown();
 
-            const activeName = localStorage.getItem('the_gradest_active_assignment_name');
+            const rawActive = localStorage.getItem('the_gradest_active_assignment_name');
+            const activeName = cleanAssignmentName(rawActive, null);
+            if (activeName !== rawActive) {
+              localStorage.setItem('the_gradest_active_assignment_name', activeName);
+            }
             if (activeName && localAssignments[activeName]) {
               const data = localAssignments[activeName];
               state.grades = data.grades || [];
@@ -2057,7 +2106,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function toFirestoreDocId(name) {
     if (!name) return '';
-    return encodeURIComponent(name).replace(/\./g, '%2E');
+    // ONLY replace forward slashes with %2F. Do NOT encode spaces or normal characters!
+    return name.replace(/\//g, '%2F');
   }
 
   function syncAllLocalAssignmentsToCloud() {
